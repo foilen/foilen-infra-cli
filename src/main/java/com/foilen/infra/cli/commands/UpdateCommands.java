@@ -17,6 +17,7 @@ import org.springframework.shell.Availability;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellMethodAvailability;
+import org.springframework.shell.standard.ShellOption;
 
 import com.foilen.infra.api.model.ResourceDetails;
 import com.foilen.infra.api.request.RequestChanges;
@@ -74,7 +75,9 @@ public class UpdateCommands {
     }
 
     @ShellMethod("Update the Login and UI services and the UI plugins to the latest versions.")
-    public void updateInfra() {
+    public void updateInfra( //
+            @ShellOption(defaultValue = "false", help = "Only show what would be done ; don't execute") boolean dryRun //
+    ) {
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
 
         // Update Plugins
@@ -153,14 +156,17 @@ public class UpdateCommands {
         if (changes.getResourcesToUpdate().isEmpty()) {
             System.out.println("Nothing to update");
         } else {
-            System.out.println("Execute update");
-            FormResult formResult = infraApiService.getInfraResourceApiService().applyChanges(changes);
-            if (formResult.isSuccess()) {
-                System.out.println("[SUCCESS]");
+            if (dryRun) {
+                System.out.println("[DRY RUN] Not executing the update");
             } else {
-                System.out.println("[ERROR]" + JsonTools.compactPrint(formResult));
+                System.out.println("Execute update");
+                FormResult formResult = infraApiService.getInfraResourceApiService().applyChanges(changes);
+                if (formResult.isSuccess()) {
+                    System.out.println("[SUCCESS]");
+                } else {
+                    System.out.println("[ERROR]" + JsonTools.compactPrint(formResult));
+                }
             }
-
         }
 
     }
