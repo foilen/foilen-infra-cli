@@ -2,6 +2,12 @@
 
 A CLI to help managing the infrastructure.
 
+# Quick testing
+
+```
+./gradlew bootJar && java -jar build/libs/foilen-infra-cli-master-SNAPSHOT.jar
+```
+
 # Local testing
 
 ```
@@ -12,6 +18,7 @@ docker run -ti \
   --volume /home:/home \
   --workdir $(pwd) \
   --user $(id -u) \
+  --env HOME=$HOME \
   foilen-infra-cli:master-SNAPSHOT
 ```
 
@@ -23,5 +30,6 @@ docker run -ti \
   --volume /home:/home \
   --workdir $(pwd) \
   --user $(id -u) \
+  --env HOME=$HOME \
   foilen/foilen-infra-cli
 ```

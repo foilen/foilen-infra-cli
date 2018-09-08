@@ -18,4 +18,5 @@ public class FoilenInfraCliApplication {
     public static void main(String[] args) {
         SpringApplication.run(FoilenInfraCliApplication.class, args);
     }
+
 }
