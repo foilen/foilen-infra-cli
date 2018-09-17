@@ -25,8 +25,14 @@ public class InfraPromptProvider extends AbstractBasics implements PromptProvide
     @Override
     public AttributedString getPrompt() {
         String prompt = "";
+        if (profileService.getSource() != null) {
+            prompt += profileService.getSource().getProfileName();
+        }
+        if (profileService.getSource() != null || profileService.getTarget() != null) {
+            prompt += "->";
+        }
         if (profileService.getTarget() != null) {
-            prompt += "->" + profileService.getTarget().getProfileName();
+            prompt += profileService.getTarget().getProfileName();
         }
 
         if (prompt.isEmpty()) {

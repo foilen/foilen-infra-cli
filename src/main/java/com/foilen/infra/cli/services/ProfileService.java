@@ -33,6 +33,7 @@ public class ProfileService extends AbstractBasics {
 
     private String directoryPath;
 
+    private AbstractProfile source;
     private AbstractProfile target;
 
     public void add(String profileName, AbstractProfile profile) {
@@ -50,24 +51,47 @@ public class ProfileService extends AbstractBasics {
 
     }
 
+    private InfraApiService getInfraApiService(AbstractProfile profile, String type) {
+        if (profile == null) {
+            throw new RuntimeException("No " + type + " profile set");
+        }
+        if (!(profile instanceof ApiProfile)) {
+            throw new RuntimeException("The " + type + " profile is not of API type");
+        }
+
+        ApiProfile apiProfile = (ApiProfile) profile;
+        return new InfraApiServiceImpl(apiProfile.getInfraBaseUrl(), apiProfile.getApiUser(), apiProfile.getApiKey());
+    }
+
+    public AbstractProfile getSource() {
+        return source;
+    }
+
+    public InfraApiService getSourceInfraApiService() {
+        return getInfraApiService(source, "source");
+    }
+
     public AbstractProfile getTarget() {
         return target;
     }
 
     public InfraApiService getTargetInfraApiService() {
-        if (target == null) {
-            throw new RuntimeException("No target profile set");
-        }
-        if (!(target instanceof ApiProfile)) {
-            throw new RuntimeException("The target profile is not of API type");
-        }
-
-        ApiProfile apiProfile = (ApiProfile) target;
-        return new InfraApiServiceImpl(apiProfile.getInfraBaseUrl(), apiProfile.getApiUser(), apiProfile.getApiKey());
+        return getInfraApiService(target, "target");
     }
 
     public List<String> list() {
         return DirectoryTools.listOnlyFileNames(directoryPath);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void setSource(String profileName) {
+        Map<String, Object> map = JsonTools.readFromFile(directoryPath + profileName, Map.class);
+        String type = (String) map.get("type");
+        Class<?> classType = ReflectionTools.safelyGetClass(type);
+        if (AbstractProfile.class.isAssignableFrom(classType)) {
+            source = (AbstractProfile) JsonTools.readFromFile(directoryPath + profileName, classType);
+            source.setProfileName(profileName);
+        }
     }
 
     @SuppressWarnings("unchecked")

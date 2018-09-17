@@ -61,6 +61,11 @@ public class ProfileCommands {
         return profileService.list();
     }
 
+    @ShellMethod("Set the source profile.")
+    public void profileSetSource(String profileName) {
+        profileService.setSource(profileName);
+    }
+
     @ShellMethod("Set the target profile.")
     public void profileSetTarget(String profileName) {
         profileService.setTarget(profileName);
