@@ -26,10 +26,12 @@ import com.foilen.infra.api.request.RequestResourceToUpdate;
 import com.foilen.infra.api.response.ResponseResourceBucket;
 import com.foilen.infra.api.response.ResponseResourceBuckets;
 import com.foilen.infra.api.service.InfraApiService;
+import com.foilen.infra.cli.CliException;
 import com.foilen.infra.cli.model.ApiProfile;
 import com.foilen.infra.cli.model.OnlineFileDetails;
 import com.foilen.infra.cli.services.BintrayService;
 import com.foilen.infra.cli.services.DockerHubService;
+import com.foilen.infra.cli.services.ExceptionService;
 import com.foilen.infra.cli.services.ProfileService;
 import com.foilen.infra.resource.infraconfig.InfraConfig;
 import com.foilen.infra.resource.infraconfig.InfraConfigPlugin;
@@ -49,6 +51,8 @@ public class UpdateCommands {
     private BintrayService bintrayService;
     @Autowired
     private DockerHubService dockerHubService;
+    @Autowired
+    private ExceptionService exceptionService;
     @Autowired
     private ProfileService profileService;
 
@@ -83,7 +87,7 @@ public class UpdateCommands {
         // Update Plugins
         ResponseResourceBuckets pluginsBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(RESOURCE_TYPE_INFRASTRUCTURE_PLUGIN));
         if (!pluginsBuckets.isSuccess()) {
-            throw new RuntimeException("Could not get the list of plugins: " + JsonTools.compactPrint(pluginsBuckets));
+            throw new CliException("Could not get the list of plugins: " + JsonTools.compactPrint(pluginsBuckets));
         }
         List<InfraConfigPlugin> infraConfigPlugins = pluginsBuckets.getItems().stream() //
                 .map(it -> JsonTools.clone(it.getResourceDetails().getResource(), InfraConfigPlugin.class)) //
@@ -122,7 +126,7 @@ public class UpdateCommands {
         ResponseResourceBucket infraConfigBucket = infraApiService.getInfraResourceApiService()
                 .resourceFindOne(new RequestResourceSearch().setResourceType(RESOURCE_TYPE_INFRASTRUCTURE_CONFIGURATION));
         if (!infraConfigBucket.isSuccess() || infraConfigBucket.getItem() == null) {
-            throw new RuntimeException("Could not get the infra config: " + JsonTools.compactPrint(infraConfigBucket));
+            throw new CliException("Could not get the infra config: " + JsonTools.compactPrint(infraConfigBucket));
         }
         InfraConfig infraConfig = JsonTools.clone(infraConfigBucket.getItem().getResourceDetails().getResource(), InfraConfig.class);
 
@@ -161,11 +165,7 @@ public class UpdateCommands {
             } else {
                 System.out.println("Execute update");
                 FormResult formResult = infraApiService.getInfraResourceApiService().applyChanges(changes);
-                if (formResult.isSuccess()) {
-                    System.out.println("[SUCCESS]");
-                } else {
-                    System.out.println("[ERROR]" + JsonTools.compactPrint(formResult));
-                }
+                exceptionService.displayResult(formResult, "Executing update");
             }
         }
 

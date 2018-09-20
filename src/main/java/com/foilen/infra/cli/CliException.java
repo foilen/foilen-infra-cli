@@ -13,6 +13,10 @@ public class CliException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
+    public CliException() {
+        super();
+    }
+
     public CliException(String message) {
         super(message);
     }
