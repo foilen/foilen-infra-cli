@@ -9,11 +9,12 @@
  */
 package com.foilen.infra.cli.model;
 
-public class ApiProfile extends AbstractProfile {
+public class ApiProfile extends AbstractProfile implements ProfileHasCert {
 
     private String infraBaseUrl;
     private String apiUser;
     private String apiKey;
+    private String sshCertificateFile;
 
     public String getApiKey() {
         return apiKey;
@@ -27,6 +28,11 @@ public class ApiProfile extends AbstractProfile {
         return infraBaseUrl;
     }
 
+    @Override
+    public String getSshCertificateFile() {
+        return sshCertificateFile;
+    }
+
     public void setApiKey(String apiKey) {
         this.apiKey = apiKey;
     }
@@ -37,6 +43,10 @@ public class ApiProfile extends AbstractProfile {
 
     public void setInfraBaseUrl(String infraBaseUrl) {
         this.infraBaseUrl = infraBaseUrl;
+    }
+
+    public void setSshCertificateFile(String sshCertificateFile) {
+        this.sshCertificateFile = sshCertificateFile;
     }
 
 }

@@ -31,12 +31,14 @@ public class ProfileCommands {
             String profileName, //
             String infraBaseUrl, //
             String apiUser, //
-            String apiKey) {
+            String apiKey, //
+            @ShellOption(defaultValue = ShellOption.NULL) String rootSshCert) {
 
         ApiProfile profile = new ApiProfile();
         profile.setInfraBaseUrl(infraBaseUrl);
         profile.setApiUser(apiUser);
         profile.setApiKey(apiKey);
+        profile.setSshCertificateFile(rootSshCert);
         profileService.add(profileName, profile);
     }
 

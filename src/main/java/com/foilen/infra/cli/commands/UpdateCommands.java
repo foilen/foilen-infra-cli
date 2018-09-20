@@ -9,7 +9,11 @@
  */
 package com.foilen.infra.cli.commands;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,18 +33,25 @@ import com.foilen.infra.api.service.InfraApiService;
 import com.foilen.infra.cli.CliException;
 import com.foilen.infra.cli.model.ApiProfile;
 import com.foilen.infra.cli.model.OnlineFileDetails;
+import com.foilen.infra.cli.model.ProfileHasCert;
 import com.foilen.infra.cli.services.BintrayService;
 import com.foilen.infra.cli.services.DockerHubService;
 import com.foilen.infra.cli.services.ExceptionService;
 import com.foilen.infra.cli.services.ProfileService;
 import com.foilen.infra.resource.infraconfig.InfraConfig;
 import com.foilen.infra.resource.infraconfig.InfraConfigPlugin;
+import com.foilen.infra.resource.machine.Machine;
+import com.foilen.smalltools.jsch.JSchTools;
+import com.foilen.smalltools.jsch.SshLogin;
 import com.foilen.smalltools.restapi.model.FormResult;
+import com.foilen.smalltools.shell.ExecResult;
+import com.foilen.smalltools.tools.AbstractBasics;
+import com.foilen.smalltools.tools.AssertTools;
 import com.foilen.smalltools.tools.JsonTools;
 import com.foilen.smalltools.tools.StringTools;
 
 @ShellComponent
-public class UpdateCommands {
+public class UpdateCommands extends AbstractBasics {
 
     private static final String RESOURCE_TYPE_INFRASTRUCTURE_CONFIGURATION = "Infrastructure Configuration";
     private static final String RESOURCE_TYPE_INFRASTRUCTURE_PLUGIN = "Infrastructure Plugin";
@@ -168,6 +179,70 @@ public class UpdateCommands {
                 exceptionService.displayResult(formResult, "Executing update");
             }
         }
+
+    }
+
+    @ShellMethod("Update the softwares on all the machines (apt dist-upgrade).")
+    public void updateSoftwares() {
+
+        // Check there is a certificate
+        String certFile = ((ProfileHasCert) profileService.getTarget()).getSshCertificateFile();
+        AssertTools.assertNotNull(certFile, "The target profile does not have the root certificate set");
+
+        // Get the list of machines
+        InfraApiService infraApiService = profileService.getTargetInfraApiService();
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType("Machine"));
+        if (!resourceBuckets.isSuccess()) {
+            throw new CliException(resourceBuckets.getError());
+        }
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        List<Future<String>> futures = new ArrayList<>();
+        resourceBuckets.getItems().stream() //
+                .map(it -> JsonTools.clone(it.getResourceDetails().getResource(), Machine.class)) //
+                .map(it -> it.getName()) //
+                .sorted() //
+                .forEach(hostname -> {
+
+                    futures.add(executorService.submit(() -> {
+                        logger.info("Updating softwares on {}", hostname);
+                        JSchTools jSchTools = null;
+                        try {
+                            jSchTools = new JSchTools().login(new SshLogin(hostname, "root").withPrivateKey(certFile).autoApproveHostKey());
+                            ExecResult execResult = jSchTools.executeInLogger("/usr/bin/apt-get -y dist-upgrade");
+                            if (execResult.getExitCode() == 0) {
+                                logger.info("Updating softwares on {} was a success", hostname);
+                                return "[OK] " + hostname;
+                            } else {
+                                logger.info("Updating softwares on {} failed with exit code {}", hostname, execResult.getExitCode());
+                                return "[FAILED] " + hostname;
+                            }
+                        } catch (Exception e) {
+                            logger.info("Updating softwares on {} failed ", hostname, e);
+                            return "[FAILED] " + hostname;
+                        } finally {
+                            if (jSchTools != null) {
+                                jSchTools.disconnect();
+                            }
+                        }
+                    }));
+
+                });
+
+        // Wait for the end
+        futures.stream() //
+                .map(it -> {
+                    try {
+                        return it.get();
+                    } catch (Exception e) {
+                        logger.error("Problem while executing", e);
+                        return null;
+                    }
+                }) //
+                .filter(it -> it != null) //
+                .sorted().forEach(it -> {
+                    System.out.println(it);
+                });
+        executorService.shutdown();
 
     }
 

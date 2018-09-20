@@ -9,12 +9,18 @@
  */
 package com.foilen.infra.cli;
 
+import com.foilen.smalltools.restapi.model.ApiError;
+
 public class CliException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
     public CliException() {
         super();
+    }
+
+    public CliException(ApiError error) {
+        super(error.getTimestamp() + " " + error.getUniqueId() + " " + error.getMessage());
     }
 
     public CliException(String message) {
