@@ -9,7 +9,9 @@
  */
 package com.foilen.infra.cli.commands;
 
+import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -47,7 +49,9 @@ import com.foilen.smalltools.restapi.model.FormResult;
 import com.foilen.smalltools.shell.ExecResult;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.AssertTools;
+import com.foilen.smalltools.tools.FreemarkerTools;
 import com.foilen.smalltools.tools.JsonTools;
+import com.foilen.smalltools.tools.SecureRandomTools;
 import com.foilen.smalltools.tools.StringTools;
 
 @ShellComponent
@@ -87,6 +91,80 @@ public class UpdateCommands extends AbstractBasics {
         }
 
         return Availability.unavailable("the target profile is not of API type");
+    }
+
+    @ShellMethod("Update the docker manager on all the machines")
+    public void updateDockerManager(String version) {
+
+        // Check there is a certificate
+        String certFile = ((ProfileHasCert) profileService.getTarget()).getSshCertificateFile();
+        AssertTools.assertNotNull(certFile, "The target profile does not have the root certificate set");
+
+        // Get the list of machines
+        InfraApiService infraApiService = profileService.getTargetInfraApiService();
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType("Machine"));
+        if (!resourceBuckets.isSuccess()) {
+            throw new CliException(resourceBuckets.getError());
+        }
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        List<Future<String>> futures = new ArrayList<>();
+        resourceBuckets.getItems().stream() //
+                .map(it -> JsonTools.clone(it.getResourceDetails().getResource(), Machine.class)) //
+                .map(it -> it.getName()) //
+                .sorted() //
+                .forEach(hostname -> {
+
+                    futures.add(executorService.submit(() -> {
+                        logger.info("Updating docker manager on {} to version {}", hostname, version);
+                        JSchTools jSchTools = null;
+                        try {
+                            jSchTools = new JSchTools().login(new SshLogin(hostname, "root").withPrivateKey(certFile).autoApproveHostKey());
+
+                            // Send the script
+                            String scriptPath = "/tmp/" + SecureRandomTools.randomHexString(10) + ".sh";
+                            jSchTools.createAndUseSftpChannel(sftp -> {
+                                String content = FreemarkerTools.processTemplate("/com/foilen/infra/cli/commands/updateDockerManager.sh.ftl", Collections.singletonMap("version", version));
+                                sftp.put(new ByteArrayInputStream(content.getBytes()), scriptPath);
+                                sftp.chmod(00700, scriptPath);
+                            });
+
+                            // Execute the script
+                            ExecResult execResult = jSchTools.executeInLogger(scriptPath);
+                            if (execResult.getExitCode() == 0) {
+                                logger.info("Updating docker manager on {} was a success", hostname);
+                                return "[OK] " + hostname;
+                            } else {
+                                logger.info("Updating docker manager on {} failed with exit code {}", hostname, execResult.getExitCode());
+                                return "[FAILED] " + hostname;
+                            }
+                        } catch (Exception e) {
+                            logger.info("Updating docker manager on {} failed ", hostname, e);
+                            return "[FAILED] " + hostname;
+                        } finally {
+                            if (jSchTools != null) {
+                                jSchTools.disconnect();
+                            }
+                        }
+                    }));
+
+                });
+
+        // Wait for the end
+        futures.stream() //
+                .map(it -> {
+                    try {
+                        return it.get();
+                    } catch (Exception e) {
+                        logger.error("Problem while executing", e);
+                        return null;
+                    }
+                }) //
+                .filter(it -> it != null) //
+                .sorted().forEach(it -> {
+                    System.out.println(it);
+                });
+        executorService.shutdown();
+
     }
 
     @ShellMethod("Update the Login and UI services and the UI plugins to the latest versions.")
