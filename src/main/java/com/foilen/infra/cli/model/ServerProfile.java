@@ -9,13 +9,14 @@
  */
 package com.foilen.infra.cli.model;
 
-public class ServerProfile extends AbstractProfile implements ProfileHasCert, ProfileHasUser {
+public class ServerProfile extends AbstractProfile implements ProfileHasCert, ProfileHasHostname, ProfileHasUser {
 
     private String hostname;
     private int sshPort = 22;
     private String username = "root";
     private String sshCertificateFile;
 
+    @Override
     public String getHostname() {
         return hostname;
     }

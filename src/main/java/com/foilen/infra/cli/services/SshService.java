@@ -14,10 +14,11 @@ import org.springframework.stereotype.Component;
 import com.foilen.infra.cli.CliException;
 import com.foilen.smalltools.jsch.JSchTools;
 import com.foilen.smalltools.jsch.SshLogin;
+import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.ThreadTools;
 
 @Component
-public class SshService {
+public class SshService extends AbstractBasics {
 
     public void waitCanLogin(String hostname, String username, String password, int timeoutSeconds) {
         long maxTime = System.currentTimeMillis() + timeoutSeconds * 1000L;
@@ -30,7 +31,7 @@ public class SshService {
             }
 
             // Wait
-            System.out.print(".");
+            logger.info("Waiting for password to propagate. Retry in 10 seconds");
             ThreadTools.sleep(10000);
         }
         System.out.println();

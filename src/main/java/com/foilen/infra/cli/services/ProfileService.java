@@ -73,12 +73,54 @@ public class ProfileService extends AbstractBasics {
         return source;
     }
 
+    public <T> T getSourceAs(Class<T> type) {
+        try {
+            return getSourceAsOrFail(type);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T getSourceAsOrFail(Class<T> type) {
+        if (source == null) {
+            throw new CliException("No source profile set");
+        }
+        if (!type.isAssignableFrom(source.getClass())) {
+            throw new CliException("The source profile is not of " + type + " type");
+        }
+
+        return (T) source;
+
+    }
+
     public InfraApiService getSourceInfraApiService() {
         return getInfraApiService(source, "source");
     }
 
     public AbstractProfile getTarget() {
         return target;
+    }
+
+    public <T> T getTargetAs(Class<T> type) {
+        try {
+            return getTargetAsOrFail(type);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T getTargetAsOrFail(Class<T> type) {
+        if (target == null) {
+            throw new CliException("No target profile set");
+        }
+        if (!type.isAssignableFrom(target.getClass())) {
+            throw new CliException("The target profile is not of " + type + " type");
+        }
+
+        return (T) target;
+
     }
 
     public InfraApiService getTargetInfraApiService() {
