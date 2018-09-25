@@ -282,11 +282,19 @@ public class UpdateCommands extends AbstractBasics {
                 .forEach(hostname -> {
 
                     futures.add(executorService.submit(() -> {
-                        logger.info("Updating softwares on {}", hostname);
                         JSchTools jSchTools = null;
                         try {
+                            logger.info("Updating softwares list on {}", hostname);
                             jSchTools = new JSchTools().login(new SshLogin(hostname, "root").withPrivateKey(certFile).autoApproveHostKey());
-                            ExecResult execResult = jSchTools.executeInLogger("/usr/bin/apt-get -y dist-upgrade");
+                            ExecResult execResult = jSchTools.executeInLogger("export TERM=dumb ; /usr/bin/apt-get update");
+                            if (execResult.getExitCode() == 0) {
+                                logger.info("Updating softwares list on {} was a success", hostname);
+                            } else {
+                                logger.info("Updating softwares list {} failed with exit code {}", hostname, execResult.getExitCode());
+                                return "[FAILED] " + hostname;
+                            }
+                            logger.info("Updating softwares on {}", hostname);
+                            execResult = jSchTools.executeInLogger("export TERM=dumb ; /usr/bin/apt-get -y dist-upgrade");
                             if (execResult.getExitCode() == 0) {
                                 logger.info("Updating softwares on {} was a success", hostname);
                                 return "[OK] " + hostname;
