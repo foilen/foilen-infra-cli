@@ -7,10 +7,10 @@
     http://opensource.org/licenses/MIT
 
  */
-package com.foilen.infra.cli.model;
+package com.foilen.infra.cli.model.profile;
 
-public interface ProfileHasHostname {
+public interface ProfileHasCert {
 
-    String getHostname();
+    String getSshCertificateFile();
 
 }

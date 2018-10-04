@@ -16,8 +16,8 @@ import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellOption;
 
-import com.foilen.infra.cli.model.ApiProfile;
-import com.foilen.infra.cli.model.ServerProfile;
+import com.foilen.infra.cli.model.profile.ApiProfile;
+import com.foilen.infra.cli.model.profile.ServerProfile;
 import com.foilen.infra.cli.services.ProfileService;
 
 @ShellComponent

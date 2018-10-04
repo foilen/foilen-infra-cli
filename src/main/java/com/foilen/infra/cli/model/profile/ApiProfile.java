@@ -7,7 +7,7 @@
     http://opensource.org/licenses/MIT
 
  */
-package com.foilen.infra.cli.model;
+package com.foilen.infra.cli.model.profile;
 
 public class ApiProfile extends AbstractProfile implements ProfileHasCert {
 

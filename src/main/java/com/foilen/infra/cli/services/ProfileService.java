@@ -21,8 +21,8 @@ import org.springframework.stereotype.Component;
 import com.foilen.infra.api.service.InfraApiService;
 import com.foilen.infra.api.service.InfraApiServiceImpl;
 import com.foilen.infra.cli.CliException;
-import com.foilen.infra.cli.model.AbstractProfile;
-import com.foilen.infra.cli.model.ApiProfile;
+import com.foilen.infra.cli.model.profile.AbstractProfile;
+import com.foilen.infra.cli.model.profile.ApiProfile;
 import com.foilen.smalltools.JavaEnvironmentValues;
 import com.foilen.smalltools.reflection.ReflectionTools;
 import com.foilen.smalltools.tools.AbstractBasics;
@@ -57,7 +57,7 @@ public class ProfileService extends AbstractBasics {
 
     }
 
-    private InfraApiService getInfraApiService(AbstractProfile profile, String type) {
+    public InfraApiService getInfraApiService(AbstractProfile profile, String type) {
         if (profile == null) {
             throw new CliException("No " + type + " profile set");
         }
