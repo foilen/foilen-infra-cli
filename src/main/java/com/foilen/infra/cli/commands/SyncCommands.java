@@ -185,10 +185,13 @@ public class SyncCommands extends AbstractBasics {
             JSchTools jsch = sshService.connect(side);
             try {
                 ExecResult result = jsch.executeInMemory("cat /var/infra-endpoints/" + databaseServerName + "_MYSQL_TCP");
-                if (result.getExitCode() != 0) {
+                String[] hostPort = result.getStdOutAsString().split(":");
+                if (hostPort.length != 2) {
+                    logger.error("Could not retrieve the endpoints details. Exit code {}", result.getExitCode());
+                    logger.error("STDOUT: {}", result.getStdOutAsString());
+                    logger.error("STDERR: {}", result.getStdErrAsString());
                     throw new CliException("Could not retrieve the endpoints details of the database in /var/infra-endpoints/");
                 }
-                String[] hostPort = result.getStdOutAsString().split(":");
                 side.setDbHost(hostPort[0]);
                 side.setDbPort(Integer.valueOf(hostPort[1]));
             } finally {
