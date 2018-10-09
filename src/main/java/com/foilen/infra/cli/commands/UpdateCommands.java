@@ -94,7 +94,16 @@ public class UpdateCommands extends AbstractBasics {
     }
 
     @ShellMethod("Update the docker manager on all the machines")
-    public void updateDockerManager(String version) {
+    public void updateDockerManager( //
+            @ShellOption(defaultValue = ShellOption.NULL) String version //
+    ) {
+
+        // Use latest version if none specified
+        if (version == null) {
+            OnlineFileDetails dockerManagerVersionDetails = dockerHubService.getLatestVersionDockerHub("foilen/foilen-infra-docker-manager");
+            version = dockerManagerVersionDetails.getVersion();
+        }
+        String finalVersion = version;
 
         // Check there is a certificate
         String certFile = ((ProfileHasCert) profileService.getTarget()).getSshCertificateFile();
@@ -115,7 +124,7 @@ public class UpdateCommands extends AbstractBasics {
                 .forEach(hostname -> {
 
                     futures.add(executorService.submit(() -> {
-                        logger.info("Updating docker manager on {} to version {}", hostname, version);
+                        logger.info("Updating docker manager on {} to version {}", hostname, finalVersion);
                         JSchTools jSchTools = null;
                         try {
                             jSchTools = new JSchTools().login(new SshLogin(hostname, "root").withPrivateKey(certFile).autoApproveHostKey());
@@ -123,7 +132,7 @@ public class UpdateCommands extends AbstractBasics {
                             // Send the script
                             String scriptPath = "/tmp/" + SecureRandomTools.randomHexString(10) + ".sh";
                             jSchTools.createAndUseSftpChannel(sftp -> {
-                                String content = FreemarkerTools.processTemplate("/com/foilen/infra/cli/commands/updateDockerManager.sh.ftl", Collections.singletonMap("version", version));
+                                String content = FreemarkerTools.processTemplate("/com/foilen/infra/cli/commands/updateDockerManager.sh.ftl", Collections.singletonMap("version", finalVersion));
                                 sftp.put(new ByteArrayInputStream(content.getBytes()), scriptPath);
                                 sftp.chmod(00700, scriptPath);
                             });
