@@ -59,6 +59,27 @@ import com.foilen.smalltools.tuple.Tuple3;
 @ShellComponent
 public class SyncCommands extends AbstractBasics {
 
+    static protected String trimSlashes(String text) {
+        if (text == null) {
+            text = "";
+        }
+        while (text.startsWith("/")) {
+            if (text.length() > 1) {
+                text = text.substring(1);
+            } else {
+                text = "";
+            }
+        }
+        while (text.endsWith("/")) {
+            if (text.length() > 1) {
+                text = text.substring(0, text.length() - 1);
+            } else {
+                text = "";
+            }
+        }
+        return text;
+    }
+
     @Autowired
     private SshService sshService;
     @Autowired
@@ -228,8 +249,11 @@ public class SyncCommands extends AbstractBasics {
             @ShellOption(defaultValue = ShellOption.NULL) String sourceHostname, //
             String sourceUsername, //
             @ShellOption(defaultValue = ShellOption.NULL) String targetHostname, //
-            String targetUsername //
+            String targetUsername, //
+            @ShellOption(defaultValue = ShellOption.NULL) String subFolder //
     ) {
+
+        subFolder = trimSlashes(subFolder);
 
         if (sourceHostname == null) {
             ProfileHasHostname value = profileService.getSourceAs(ProfileHasHostname.class);
@@ -304,7 +328,8 @@ public class SyncCommands extends AbstractBasics {
                 StringBuilder command = new StringBuilder();
                 command.append("/usr/bin/rsync --delay-updates --compress-level=9 --delete -zrtv");
                 command.append("e \"ssh -o StrictHostKeyChecking=no -i ").append(tmpKeyfile).append(" -l ").append(targetCertUsername).append("\" ");
-                command.append("/home/").append(sourceUsername).append("/ ").append(targetHostname).append(":/home/").append(targetUsername).append("/");
+                command.append("/home/").append(sourceUsername).append("/").append(subFolder).append("/ ").append(targetHostname).append(":/home/").append(targetUsername).append("/").append(subFolder)
+                        .append("/");
                 logger.info("Run command: {}", command.toString());
                 ExecResult execResult = jSchTools.executeInLogger(command.toString());
                 if (execResult.getExitCode() != 0) {
@@ -366,7 +391,8 @@ public class SyncCommands extends AbstractBasics {
                 StringBuilder command = new StringBuilder();
                 command.append("/usr/bin/rsync --delay-updates --compress-level=9 --delete -zrtv");
                 command.append("e \"ssh -o StrictHostKeyChecking=no -i ").append(tmpKeyfile).append(" -l ").append(sourceCertUsername).append("\" ");
-                command.append(sourceHostname).append(":/home/").append(sourceUsername).append("/ /home/").append(targetUsername).append("/");
+                command.append(sourceHostname).append(":/home/").append(sourceUsername).append("/").append(subFolder).append("/ /home/").append(targetUsername).append("/").append(subFolder)
+                        .append("/");
                 logger.info("Run command: {}", command.toString());
                 ExecResult execResult = jSchTools.executeInLogger(command.toString());
                 if (execResult.getExitCode() != 0) {
@@ -406,7 +432,8 @@ public class SyncCommands extends AbstractBasics {
                 StringBuilder command = new StringBuilder();
                 command.append("/usr/bin/rsync --delay-updates --compress-level=9 --delete -zrtv");
                 command.append("e \"ssh -o StrictHostKeyChecking=no -i ").append(tmpKeyfile).append(" -l ").append(targetCertUsername).append("\" ");
-                command.append("/home/").append(sourceUsername).append("/ ").append(targetHostname).append(":/home/").append(targetUsername).append("/");
+                command.append("/home/").append(sourceUsername).append("/").append(subFolder).append("/ ").append(targetHostname).append(":/home/").append(targetUsername).append("/").append(subFolder)
+                        .append("/");
                 logger.info("Run command: {}", command.toString());
                 ExecResult execResult = jSchTools.executeInLogger(command.toString());
                 if (execResult.getExitCode() != 0) {
