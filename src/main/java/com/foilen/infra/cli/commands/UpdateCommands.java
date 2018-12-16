@@ -60,7 +60,8 @@ public class UpdateCommands extends AbstractBasics {
     private static final String RESOURCE_TYPE_INFRASTRUCTURE_CONFIGURATION = "Infrastructure Configuration";
     private static final String RESOURCE_TYPE_INFRASTRUCTURE_PLUGIN = "Infrastructure Plugin";
 
-    private static final String SUPPORTED_PLUGIN_URI_START = "https://dl.bintray.com/foilen/maven/com/foilen/foilen-infra-resource-";
+    private static final String SUPPORTED_PLUGIN_URI_START = "https://dl.bintray.com/foilen/maven/com/foilen/foilen-infra-plugins-";
+    private static final String SUPPORTED_RESOURCE_URI_START = "https://dl.bintray.com/foilen/maven/com/foilen/foilen-infra-resource-";
 
     @Autowired
     private BintrayService bintrayService;
@@ -195,7 +196,7 @@ public class UpdateCommands extends AbstractBasics {
 
         infraConfigPlugins.forEach(it -> {
             String url = it.getUrl();
-            if (url.startsWith(SUPPORTED_PLUGIN_URI_START)) {
+            if (url.startsWith(SUPPORTED_PLUGIN_URI_START) || url.startsWith(SUPPORTED_RESOURCE_URI_START)) {
 
                 // Get latest version
                 String pluginName = getPluginNameFromUrl(url);
