@@ -51,7 +51,6 @@ import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.AssertTools;
 import com.foilen.smalltools.tools.FreemarkerTools;
 import com.foilen.smalltools.tools.JsonTools;
-import com.foilen.smalltools.tools.SecureRandomTools;
 import com.foilen.smalltools.tools.StringTools;
 
 @ShellComponent
@@ -131,7 +130,7 @@ public class UpdateCommands extends AbstractBasics {
                             jSchTools = new JSchTools().login(new SshLogin(hostname, "root").withPrivateKey(certFile).autoApproveHostKey());
 
                             // Send the script
-                            String scriptPath = "/tmp/" + SecureRandomTools.randomHexString(10) + ".sh";
+                            String scriptPath = "/home/infra_docker_manager/startDockerManager.sh";
                             jSchTools.createAndUseSftpChannel(sftp -> {
                                 String content = FreemarkerTools.processTemplate("/com/foilen/infra/cli/commands/updateDockerManager.sh.ftl", Collections.singletonMap("version", finalVersion));
                                 sftp.put(new ByteArrayInputStream(content.getBytes()), scriptPath);
