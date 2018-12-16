@@ -22,6 +22,9 @@ repositories {
   mavenLocal()
   jcenter()
   mavenCentral()
+  maven {
+    url 'https://dl.bintray.com/foilen/maven/'
+  }
 }
 
 sourceCompatibility = 1.8
@@ -32,10 +35,7 @@ dependencies {
   compile 'org.freemarker:freemarker:2.3.23'
   compile 'com.jcraft:jsch:0.1.54'
   compile 'com.foilen:foilen-infra-api:0.3.4'
-  compile 'com.foilen:foilen-infra-resource-infraconfig:0.3.10'
-  compile 'com.foilen:foilen-infra-resource-machine:0.1.1'
-  compile 'com.foilen:foilen-infra-resource-mariadb:0.1.6'
-  compile 'com.foilen:foilen-infra-resource-unixuser:0.1.6'
+  compile 'com.foilen:foilen-infra-plugins-core:0.1.0'
   compile 'org.jsoup:jsoup:1.11.3'
   compile('org.springframework.shell:spring-shell-starter:2.0.1.RELEASE')
   testCompile('org.springframework.boot:spring-boot-starter-test')
