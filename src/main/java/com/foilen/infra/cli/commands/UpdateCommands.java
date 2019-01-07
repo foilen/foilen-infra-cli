@@ -29,6 +29,7 @@ import com.foilen.infra.api.model.ResourceDetails;
 import com.foilen.infra.api.request.RequestChanges;
 import com.foilen.infra.api.request.RequestResourceSearch;
 import com.foilen.infra.api.request.RequestResourceToUpdate;
+import com.foilen.infra.api.response.ResponseResourceAppliedChanges;
 import com.foilen.infra.api.response.ResponseResourceBucket;
 import com.foilen.infra.api.response.ResponseResourceBuckets;
 import com.foilen.infra.api.service.InfraApiService;
@@ -45,7 +46,6 @@ import com.foilen.infra.resource.infraconfig.InfraConfigPlugin;
 import com.foilen.infra.resource.machine.Machine;
 import com.foilen.smalltools.jsch.JSchTools;
 import com.foilen.smalltools.jsch.SshLogin;
-import com.foilen.smalltools.restapi.model.FormResult;
 import com.foilen.smalltools.shell.ExecResult;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.AssertTools;
@@ -262,7 +262,7 @@ public class UpdateCommands extends AbstractBasics {
                 System.out.println("[DRY RUN] Not executing the update");
             } else {
                 System.out.println("Execute update");
-                FormResult formResult = infraApiService.getInfraResourceApiService().applyChanges(changes);
+                ResponseResourceAppliedChanges formResult = infraApiService.getInfraResourceApiService().applyChanges(changes);
                 exceptionService.displayResult(formResult, "Executing update");
             }
         }
