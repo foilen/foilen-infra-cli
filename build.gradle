@@ -37,6 +37,7 @@ dependencies {
   compile 'com.foilen:foilen-infra-api:0.4.2'
   compile 'com.foilen:foilen-infra-plugins-core:0.1.10'
   compile 'org.jsoup:jsoup:1.11.3'
+  compile 'org.springframework.data:spring-data-jpa'
   compile('org.springframework.shell:spring-shell-starter:2.0.1.RELEASE')
   testCompile('org.springframework.boot:spring-boot-starter-test')
 }
