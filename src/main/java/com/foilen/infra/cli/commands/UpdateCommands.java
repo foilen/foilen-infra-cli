@@ -52,6 +52,7 @@ import com.foilen.smalltools.tools.AssertTools;
 import com.foilen.smalltools.tools.FreemarkerTools;
 import com.foilen.smalltools.tools.JsonTools;
 import com.foilen.smalltools.tools.StringTools;
+import com.google.common.base.Strings;
 
 @ShellComponent
 public class UpdateCommands extends AbstractBasics {
@@ -95,7 +96,8 @@ public class UpdateCommands extends AbstractBasics {
 
     @ShellMethod("Update the docker manager on all the machines")
     public void updateDockerManager( //
-            @ShellOption(defaultValue = ShellOption.NULL) String version //
+            @ShellOption(defaultValue = ShellOption.NULL) String version, //
+            @ShellOption(defaultValue = ShellOption.NULL, help = "If you do not want to update all the hosts, you can specify one") String hostname //
     ) {
 
         // Use latest version if none specified
@@ -115,48 +117,54 @@ public class UpdateCommands extends AbstractBasics {
         if (!resourceBuckets.isSuccess()) {
             throw new CliException(resourceBuckets.getError());
         }
+        List<String> hostnames;
+        if (Strings.isNullOrEmpty(hostname)) {
+            hostnames = resourceBuckets.getItems().stream() //
+                    .map(it -> JsonTools.clone(it.getResourceDetails().getResource(), Machine.class)) //
+                    .map(it -> it.getName()) //
+                    .sorted().collect(Collectors.toList());
+        } else {
+            hostnames = Collections.singletonList(hostname);
+        }
         ExecutorService executorService = Executors.newFixedThreadPool(2);
         List<Future<String>> futures = new ArrayList<>();
-        resourceBuckets.getItems().stream() //
-                .map(it -> JsonTools.clone(it.getResourceDetails().getResource(), Machine.class)) //
-                .map(it -> it.getName()) //
-                .sorted() //
-                .forEach(hostname -> {
 
-                    futures.add(executorService.submit(() -> {
-                        logger.info("Updating docker manager on {} to version {}", hostname, finalVersion);
-                        JSchTools jSchTools = null;
-                        try {
-                            jSchTools = new JSchTools().login(new SshLogin(hostname, "root").withPrivateKey(certFile).autoApproveHostKey());
+        hostnames.forEach(h -> {
 
-                            // Send the script
-                            String scriptPath = "/home/infra_docker_manager/startDockerManager.sh";
-                            jSchTools.createAndUseSftpChannel(sftp -> {
-                                String content = FreemarkerTools.processTemplate("/com/foilen/infra/cli/commands/updateDockerManager.sh.ftl", Collections.singletonMap("version", finalVersion));
-                                sftp.put(new ByteArrayInputStream(content.getBytes()), scriptPath);
-                                sftp.chmod(00700, scriptPath);
-                            });
+            futures.add(executorService.submit(() -> {
+                logger.info("Updating docker manager on {} to version {}", h, finalVersion);
+                JSchTools jSchTools = null;
+                try {
+                    jSchTools = new JSchTools().login(new SshLogin(h, "root").withPrivateKey(certFile).autoApproveHostKey());
 
-                            // Execute the script
-                            ExecResult execResult = jSchTools.executeInLogger(scriptPath);
-                            if (execResult.getExitCode() == 0) {
-                                logger.info("Updating docker manager on {} was a success", hostname);
-                                return "[OK] " + hostname;
-                            } else {
-                                logger.info("Updating docker manager on {} failed with exit code {}", hostname, execResult.getExitCode());
-                                return "[FAILED] " + hostname;
-                            }
-                        } catch (Exception e) {
-                            logger.info("Updating docker manager on {} failed ", hostname, e);
-                            return "[FAILED] " + hostname;
-                        } finally {
-                            if (jSchTools != null) {
-                                jSchTools.disconnect();
-                            }
-                        }
-                    }));
+                    // Send the script
+                    String scriptPath = "/home/infra_docker_manager/startDockerManager.sh";
+                    jSchTools.createAndUseSftpChannel(sftp -> {
+                        String content = FreemarkerTools.processTemplate("/com/foilen/infra/cli/commands/updateDockerManager.sh.ftl", Collections.singletonMap("version", finalVersion));
+                        sftp.put(new ByteArrayInputStream(content.getBytes()), scriptPath);
+                        sftp.chmod(00700, scriptPath);
+                    });
 
-                });
+                    // Execute the script
+                    ExecResult execResult = jSchTools.executeInLogger(scriptPath);
+                    if (execResult.getExitCode() == 0) {
+                        logger.info("Updating docker manager on {} was a success", h);
+                        return "[OK] " + h;
+                    } else {
+                        logger.info("Updating docker manager on {} failed with exit code {}", h, execResult.getExitCode());
+                        return "[FAILED] " + h;
+                    }
+                } catch (Exception e) {
+                    logger.info("Updating docker manager on {} failed ", h, e);
+                    return "[FAILED] " + h;
+                } finally {
+                    if (jSchTools != null) {
+                        jSchTools.disconnect();
+                    }
+                }
+            }));
+
+        });
 
         // Wait for the end
         futures.stream() //
