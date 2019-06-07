@@ -85,6 +85,13 @@ public class ExceptionService {
         }
     }
 
+    public void displayResultAndThrow(AbstractApiBaseWithError formResult, String context) {
+        displayResult(formResult, context);
+        if (!formResult.isSuccess()) {
+            throw new CliException();
+        }
+    }
+
     public void displayResultAndThrow(FormResult formResult, String context) {
         displayResult(formResult, context);
         if (!formResult.isSuccess()) {

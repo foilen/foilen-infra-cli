@@ -9,10 +9,16 @@
  */
 package com.foilen.infra.cli.commands;
 
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.shell.Availability;
@@ -27,9 +33,12 @@ import com.foilen.infra.api.response.ResponseResourceAppliedChanges;
 import com.foilen.infra.api.response.ResponseResourceBuckets;
 import com.foilen.infra.api.service.InfraApiService;
 import com.foilen.infra.cli.CliException;
+import com.foilen.infra.cli.commands.exec.CheckWebsiteAccessible;
+import com.foilen.infra.cli.commands.model.WebsitesAccessible;
 import com.foilen.infra.cli.model.profile.ApiProfile;
 import com.foilen.infra.cli.services.ExceptionService;
 import com.foilen.infra.cli.services.ProfileService;
+import com.foilen.infra.plugin.v1.model.resource.LinkTypeConstants;
 import com.foilen.infra.resource.apachephp.ApachePhp;
 import com.foilen.infra.resource.bind9.Bind9Server;
 import com.foilen.infra.resource.composableapplication.ComposableApplication;
@@ -39,9 +48,11 @@ import com.foilen.infra.resource.mariadb.MariaDBServer;
 import com.foilen.infra.resource.mongodb.MongoDBServer;
 import com.foilen.infra.resource.postgresql.PostgreSqlServer;
 import com.foilen.infra.resource.webcertificate.WebsiteCertificate;
+import com.foilen.infra.resource.website.Website;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.DateTools;
 import com.foilen.smalltools.tools.JsonTools;
+import com.foilen.smalltools.tools.ThreadTools;
 
 @ShellComponent
 public class CheckCommands extends AbstractBasics {
@@ -117,6 +128,62 @@ public class CheckCommands extends AbstractBasics {
                 .forEach(websiteCertificate -> {
                     System.out.println(DateTools.formatDateOnly(websiteCertificate.getEnd()) + " (" + websiteCertificate.getResourceEditorName() + ") " + websiteCertificate.getDomainNames());
                 });
+
+    }
+
+    @ShellMethod("Retrieve all the websites and try to contact them")
+    public void checkWebsitesAccessible() {
+
+        // Get the list
+        InfraApiService infraApiService = profileService.getTargetInfraApiService();
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(Website.RESOURCE_TYPE));
+        exceptionService.displayResultAndThrow(resourceBuckets, "Retrieve the websites list");
+
+        // Get the list
+        List<WebsitesAccessible> websitesAccessibles = resourceBuckets.getItems().stream() //
+                .filter(i -> i.getLinksTo().stream().anyMatch(l -> l.getLinkType().equals(LinkTypeConstants.INSTALLED_ON))) //
+                .map(resourceBucket -> JsonTools.clone(resourceBucket.getResourceDetails().getResource(), Website.class)) //
+                .flatMap(website -> website.getDomainNames().stream().map(domain -> //
+                new WebsitesAccessible(website.isHttps() ? "https://" + domain : "http://" + domain, website.getName()) //
+                )) //
+                .sorted() //
+                .collect(Collectors.toCollection(() -> new ArrayList<>()));
+
+        // Execute the checks
+        ExecutorService executorService = Executors.newFixedThreadPool(10, ThreadTools.daemonThreadFactory());
+
+        List<Future<?>> futures = websitesAccessibles.stream() //
+                .map(it -> executorService.submit(new CheckWebsiteAccessible(it))) //
+                .collect(Collectors.toList());
+        futures.forEach(f -> {
+            try {
+                f.get();
+            } catch (Exception e) {
+            }
+        });
+        System.out.println();
+
+        // Display the results
+        Collections.sort(websitesAccessibles);
+        websitesAccessibles.forEach(it -> {
+            if (it.isSuccess()) {
+                System.out.print("[OK] ");
+            } else {
+                System.out.print("[ERROR] ");
+            }
+
+            System.out.print("[" + it.getHttpStatus() + "] ");
+            System.out.print("[" + it.getExecutionTimeMs() + "ms] ");
+
+            System.out.print(it.getUrl());
+            System.out.print(" (" + it.getWebsiteName() + ")");
+
+            System.out.println();
+
+            if (!it.isSuccess()) {
+                System.out.println("\t" + it.getError());
+            }
+        });
 
     }
 
