@@ -131,6 +131,25 @@ public class CheckCommands extends AbstractBasics {
 
     }
 
+    @ShellMethod("List the Web Certificates that are not used")
+    public void checkWebCertificatesUnused() {
+
+        // Get the list
+        InfraApiService infraApiService = profileService.getTargetInfraApiService();
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(WebsiteCertificate.RESOURCE_TYPE));
+        if (!resourceBuckets.isSuccess()) {
+            throw new CliException(resourceBuckets.getError());
+        }
+
+        resourceBuckets.getItems().stream() //
+                .filter(resourceBucket -> resourceBucket.getLinksFrom().isEmpty()) //
+                .forEach(resourceBucket -> {
+                    WebsiteCertificate websiteCertificate = JsonTools.clone(resourceBucket.getResourceDetails().getResource(), WebsiteCertificate.class);
+                    System.out.println(websiteCertificate.getDomainNames() + " (" + websiteCertificate.getResourceEditorName() + ") ");
+                });
+
+    }
+
     @ShellMethod("Retrieve all the websites and try to contact them")
     public void checkWebsitesAccessible() {
 
