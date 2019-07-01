@@ -5,7 +5,7 @@ A CLI to help managing the infrastructure.
 # Quick testing
 
 ```
-./gradlew bootJar && java -jar build/libs/foilen-infra-cli-master-SNAPSHOT.jar
+./gradlew bootJar && java -jar build/libs/foilen-infra-cli-master-SNAPSHOT-boot.jar
 ```
 
 # Local testing

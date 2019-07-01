@@ -11,7 +11,7 @@ DOCKER_BUILD=$RUN_PATH/build/docker
 rm -rf $DOCKER_BUILD
 mkdir -p $DOCKER_BUILD/app
 
-cp -v build/libs/foilen-infra-cli-$VERSION.jar $DOCKER_BUILD/app/foilen-infra-cli.jar
+cp -v build/libs/foilen-infra-cli-$VERSION-boot.jar $DOCKER_BUILD/app/foilen-infra-cli.jar
 cp -v docker-release/* $DOCKER_BUILD
 
 echo ----[ Docker image folder content ]----

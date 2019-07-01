@@ -47,6 +47,14 @@ dependencies {
   testCompile('org.springframework.boot:spring-boot-starter-test')
 }
 
+jar {
+	enabled = true
+}
+
+bootJar {
+	classifier = 'boot'
+}
+
 task sourcesJar(type: Jar, dependsOn: classes) {
   classifier = 'sources'
   from sourceSets.main.allSource
