@@ -9,6 +9,7 @@
  */
 package com.foilen.infra.cli.services;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.foilen.infra.api.model.AuditItemSmallWithPagination;
@@ -24,15 +25,12 @@ import com.foilen.smalltools.tools.CollectionsTools;
 @Component
 public class ExceptionService {
 
-    private void display(ResourceDetailsSmall resource) {
-        System.out.print(resource.getResourceType());
-        System.out.print("/");
-        System.out.print(resource.getResourceName());
-    }
+    @Autowired
+    private DisplayService displayService;
 
     public void displayResult(AbstractApiBaseWithError formResult, String context) {
         if (formResult.isSuccess()) {
-            System.out.println("[SUCCESS] " + context);
+            displayService.display("[SUCCESS] " + context);
         } else {
             displayResultError(formResult, context);
         }
@@ -40,7 +38,7 @@ public class ExceptionService {
 
     public void displayResult(FormResult formResult, String context) {
         if (formResult.isSuccess()) {
-            System.out.println("[SUCCESS] " + context);
+            displayService.display("[SUCCESS] " + context);
         } else {
             displayResultError(formResult, context);
         }
@@ -48,36 +46,36 @@ public class ExceptionService {
 
     public void displayResult(ResponseResourceAppliedChanges formResult, String context) {
         if (formResult.isSuccess()) {
-            System.out.println("[SUCCESS] " + context + " (" + formResult.getTxId() + ")");
+            displayService.display("[SUCCESS] " + context + " (" + formResult.getTxId() + ")");
 
             AuditItemSmallWithPagination auditItems = formResult.getAuditItems();
             ApiPagination auditItemsPagination = auditItems.getPagination();
-            System.out.println("\tApplied modifications (" + auditItems.getItems().size() + "/" + auditItemsPagination.getTotalItems() + ")");
+            displayService.display("\tApplied modifications (" + auditItems.getItems().size() + "/" + auditItemsPagination.getTotalItems() + ")");
             auditItems.getItems().forEach(it -> {
-                System.out.print("\t\t" + it.getAction() + " " + it.getType());
-                System.out.print(" ");
+                StringBuilder line = new StringBuilder();
+                line.append("\t\t").append(it.getAction()).append(it.getType()).append(" ");
                 switch (it.getType()) {
                 case LINK:
-                    display(it.getResourceFirst());
-                    System.out.print(" -> ");
-                    System.out.print(it.getLinkType());
-                    System.out.print(" -> ");
-                    display(it.getResourceSecond());
+                    line.append(getResourceDetailsText(it.getResourceFirst()));
+                    line.append(" -> ");
+                    line.append(it.getLinkType());
+                    line.append(" -> ");
+                    line.append(getResourceDetailsText(it.getResourceSecond()));
                     break;
                 case RESOURCE:
-                    display(it.getResourceFirst());
+                    getResourceDetailsText(it.getResourceFirst());
                     if (it.getResourceSecond() != null) {
-                        System.out.print(" -> ");
-                        display(it.getResourceSecond());
+                        line.append(" -> ");
+                        getResourceDetailsText(it.getResourceSecond());
                     }
                     break;
                 case TAG:
-                    display(it.getResourceFirst());
-                    System.out.print(" -> ");
-                    System.out.print(it.getTagName());
+                    getResourceDetailsText(it.getResourceFirst());
+                    line.append(" -> ");
+                    line.append(it.getTagName());
                     break;
                 }
-                System.out.println();
+                displayService.display(line.toString());
             });
 
         } else {
@@ -100,25 +98,25 @@ public class ExceptionService {
     }
 
     private void displayResultError(AbstractApiBaseWithError formResult, String context) {
-        System.out.println("[ERROR] " + context);
+        displayService.display("[ERROR] " + context);
 
         ApiError error = formResult.getError();
         if (error != null) {
-            System.out.println("\t" + error.getTimestamp() + " " + error.getUniqueId() + " : " + error.getMessage());
+            displayService.display("\t" + error.getTimestamp() + " " + error.getUniqueId() + " : " + error.getMessage());
         }
 
     }
 
     private void displayResultError(FormResult formResult, String context) {
-        System.out.println("[ERROR] " + context);
+        displayService.display("[ERROR] " + context);
 
         ApiError error = formResult.getError();
         if (error != null) {
-            System.out.println("\t" + error.getTimestamp() + " " + error.getUniqueId() + " : " + error.getMessage());
+            displayService.display("\t" + error.getTimestamp() + " " + error.getUniqueId() + " : " + error.getMessage());
         }
 
         if (!CollectionsTools.isNullOrEmpty(formResult.getGlobalErrors())) {
-            formResult.getGlobalErrors().forEach(it -> System.out.println("\t[GLOBAL] " + it));
+            formResult.getGlobalErrors().forEach(it -> displayService.display("\t[GLOBAL] " + it));
         }
 
         if (!formResult.getValidationErrorsByField().isEmpty()) {
@@ -126,10 +124,14 @@ public class ExceptionService {
                     .sorted((a, b) -> a.getKey().compareTo(b.getKey())) //
                     .forEach(entry -> {
                         entry.getValue().stream().sorted().forEach(it -> {
-                            System.out.println("\t[" + entry.getKey() + "] " + it);
+                            displayService.display("\t[" + entry.getKey() + "] " + it);
                         });
                     });
         }
+    }
+
+    private String getResourceDetailsText(ResourceDetailsSmall resource) {
+        return resource.getResourceType() + "/" + resource.getResourceName();
     }
 
 }

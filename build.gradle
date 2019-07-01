@@ -10,10 +10,16 @@ buildscript {
   }
 }
 
+plugins {
+  id "com.jfrog.bintray" version "1.8.4"
+}
+
 apply plugin: 'java'
 apply plugin: 'eclipse'
 apply plugin: 'org.springframework.boot'
 apply plugin: 'io.spring.dependency-management'
+apply plugin: 'maven'
+apply plugin: 'maven-publish'
 
 group = 'com.foilen'
 version = System.getenv('VERSION')?:'master-SNAPSHOT'
@@ -39,4 +45,48 @@ dependencies {
   compile 'org.springframework.data:spring-data-jpa'
   compile('org.springframework.shell:spring-shell-starter:2.0.1.RELEASE')
   testCompile('org.springframework.boot:spring-boot-starter-test')
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+  classifier = 'sources'
+  from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+  classifier = 'javadoc'
+  from javadoc.destinationDir
+}
+
+artifacts {
+  archives sourcesJar
+  archives javadocJar
+}
+
+bintray {
+  user = System.getenv('BINTRAY_USER')
+  key = System.getenv('BINTRAY_KEY')
+
+  publish = true
+
+  pkg {
+    repo = 'maven'
+    userOrg = 'foilen'
+    name = 'com.foilen:foilen-infra-cli'
+    licenses = ['MIT']
+    vcsUrl = 'https://github.com/foilen/foilen-infra-cli.git'
+  }
+
+  publications = ['MyPublication']
+}
+
+publishing {
+  publications {
+    MyPublication(MavenPublication) {
+      from components.java
+      artifact sourcesJar
+      artifact javadocJar
+      groupId 'com.foilen'
+      artifactId 'foilen-infra-cli'
+    }
+  }
 }

@@ -17,6 +17,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.impl.client.HttpClientBuilder;
 
+import com.foilen.infra.cli.commands.exec.model.ProgressionHook;
 import com.foilen.infra.cli.commands.model.WebsitesAccessible;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.TimeExecutionTools;
@@ -25,9 +26,11 @@ public class CheckWebsiteAccessible extends AbstractBasics implements Runnable {
 
     private static final int TIMEOUT_MS = 30000;
 
+    private ProgressionHook progressionHook;
     private WebsitesAccessible websitesAccessible;
 
-    public CheckWebsiteAccessible(WebsitesAccessible websitesAccessible) {
+    public CheckWebsiteAccessible(ProgressionHook progressionHook, WebsitesAccessible websitesAccessible) {
+        this.progressionHook = progressionHook;
         this.websitesAccessible = websitesAccessible;
     }
 
@@ -49,7 +52,7 @@ public class CheckWebsiteAccessible extends AbstractBasics implements Runnable {
 
             HttpUriRequest request = new HttpGet(websitesAccessible.getUrl());
             try {
-                System.out.print(".");
+                progressionHook.begin();
                 HttpResponse response = httpClient.execute(request);
                 StatusLine statusLine = response.getStatusLine();
                 int statusCode = statusLine.getStatusCode();
@@ -70,7 +73,7 @@ public class CheckWebsiteAccessible extends AbstractBasics implements Runnable {
                 websitesAccessible.setError(e.getClass().getSimpleName() + " : " + e.getMessage());
             }
 
-            System.out.print("+");
+            progressionHook.done();
 
         }));
 
