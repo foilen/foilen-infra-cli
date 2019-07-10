@@ -1,6 +1,6 @@
 buildscript {
   ext {
-    springBootVersion = '2.1.4.RELEASE'
+    springBootVersion = '2.1.6.RELEASE'
   }
   repositories {
     mavenCentral()
@@ -36,11 +36,11 @@ repositories {
 sourceCompatibility = 1.11
 
 dependencies {
-  compile 'com.foilen:jl-smalltools:0.45.0'
+  compile 'com.foilen:jl-smalltools:0.46.3'
   compile 'org.freemarker:freemarker:2.3.23'
   compile 'com.jcraft:jsch:0.1.54'
   compile 'com.foilen:foilen-infra-api:0.6.0'
-  compile 'com.foilen:foilen-infra-plugins-core:0.7.0'
+  compile 'com.foilen:foilen-infra-plugins-core:0.7.4'
   compile 'org.jsoup:jsoup:1.11.3'
   compile 'org.springframework.data:spring-data-jpa'
   compile('org.springframework.shell:spring-shell-starter:2.0.1.RELEASE')
