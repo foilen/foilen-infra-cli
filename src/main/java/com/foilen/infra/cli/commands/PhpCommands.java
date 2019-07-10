@@ -9,12 +9,17 @@
  */
 package com.foilen.infra.cli.commands;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.shell.Availability;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellMethodAvailability;
 
+import com.foilen.infra.api.model.ResourceBucket;
 import com.foilen.infra.api.request.RequestResourceSearch;
 import com.foilen.infra.api.response.ResponseResourceBuckets;
 import com.foilen.infra.api.service.InfraApiService;
@@ -94,6 +99,71 @@ public class PhpCommands extends AbstractBasics {
                         System.out.println("\tMachine: " + machine.getName());
                     });
         });
+
+    }
+
+    @ShellMethod("List the PHP applications with their versions sorted by versions")
+    public void phpListApplicationByVersion() {
+
+        // Get the list of PHP applications
+        InfraApiService infraApiService = profileService.getTargetInfraApiService();
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(ApachePhp.RESOURCE_TYPE));
+        if (!resourceBuckets.isSuccess()) {
+            throw new CliException(resourceBuckets.getError());
+        }
+
+        Map<String, List<ResourceBucket>> sitesByVersion = resourceBuckets.getItems().stream() //
+                .collect(Collectors.groupingBy(resourceBucket -> {
+                    ApachePhp apachePhp = JsonTools.clone(resourceBucket.getResourceDetails().getResource(), ApachePhp.class);
+                    return apachePhp.getVersion();
+                }));
+
+        sitesByVersion.entrySet().stream() //
+                .sorted((a, b) -> a.getKey().compareTo(b.getKey())) //
+                .forEach(e -> {
+                    String version = e.getKey();
+                    System.out.println("---[ " + version + " ]---");
+                    e.getValue().forEach(resourceBucket -> {
+                        ApachePhp apachePhp = JsonTools.clone(resourceBucket.getResourceDetails().getResource(), ApachePhp.class);
+                        System.out.println("\t" + apachePhp.getName() + " " + apachePhp.getVersion());
+
+                        // Show URL
+                        resourceBucket.getLinksFrom().stream() //
+                                .filter(it -> LinkTypeConstants.POINTS_TO.equals(it.getLinkType())) //
+                                .map(it -> it.getOtherResource()) //
+                                .filter(it -> Website.RESOURCE_TYPE.equals(it.getResourceType())) //
+                                .forEach(it -> {
+                                    Website website = JsonTools.clone(it.getResource(), Website.class);
+
+                                    website.getDomainNames().stream().sorted() //
+                                            .forEach(domainName -> {
+                                                System.out.print("\t\tURL: ");
+                                                if (website.isHttps()) {
+                                                    System.out.print("https://");
+                                                } else {
+                                                    System.out.print("http://");
+                                                }
+                                                System.out.println(domainName);
+                                            });
+
+                                });
+
+                        // Show installed on machines
+                        resourceBucket.getLinksTo().stream() //
+                                .filter(it -> LinkTypeConstants.INSTALLED_ON.equals(it.getLinkType())) //
+                                .map(it -> it.getOtherResource()) //
+                                .filter(it -> "Machine".equals(it.getResourceType())) //
+                                .map(it -> JsonTools.clone(it.getResource(), Machine.class)) //
+                                .sorted((a, b) -> a.getName().compareTo(b.getName())) //
+                                .forEach(machine -> {
+                                    System.out.println("\t\tMachine: " + machine.getName());
+                                });
+
+                        System.out.println();
+
+                    });
+
+                });
 
     }
 
