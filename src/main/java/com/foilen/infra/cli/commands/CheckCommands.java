@@ -23,7 +23,6 @@ import org.springframework.shell.standard.ShellMethodAvailability;
 
 import com.foilen.infra.api.request.RequestChanges;
 import com.foilen.infra.api.request.RequestResourceSearch;
-import com.foilen.infra.api.request.RequestResourceToUpdate;
 import com.foilen.infra.api.response.ResponseResourceAppliedChanges;
 import com.foilen.infra.api.response.ResponseResourceBuckets;
 import com.foilen.infra.api.service.InfraApiService;
@@ -42,7 +41,10 @@ import com.foilen.infra.resource.infraconfig.InfraConfig;
 import com.foilen.infra.resource.mariadb.MariaDBServer;
 import com.foilen.infra.resource.mongodb.MongoDBServer;
 import com.foilen.infra.resource.postgresql.PostgreSqlServer;
+import com.foilen.infra.resource.unixuser.UnixUser;
+import com.foilen.infra.resource.urlredirection.UrlRedirection;
 import com.foilen.infra.resource.webcertificate.WebsiteCertificate;
+import com.foilen.infra.resource.website.Website;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.DateTools;
 import com.foilen.smalltools.tools.JsonTools;
@@ -57,7 +59,7 @@ public class CheckCommands extends AbstractBasics {
     @Autowired
     private ProfileService profileService;
 
-    @ShellMethod("Update some resources with the same values to ensure the updates were propagated")
+    @ShellMethod("Refresh some resources to ensure the updates were propagated")
     public void checkAllResourcesWellConfigured() {
 
         checkAllResourcesWellConfigured(InfraConfig.RESOURCE_TYPE);
@@ -65,9 +67,14 @@ public class CheckCommands extends AbstractBasics {
         checkAllResourcesWellConfigured(Bind9Server.RESOURCE_TYPE);
         checkAllResourcesWellConfigured(ComposableApplication.RESOURCE_TYPE);
         checkAllResourcesWellConfigured(JamesEmailServer.RESOURCE_TYPE);
+        checkAllResourcesWellConfigured("Machine");
         checkAllResourcesWellConfigured(MariaDBServer.RESOURCE_TYPE);
         checkAllResourcesWellConfigured(MongoDBServer.RESOURCE_TYPE);
         checkAllResourcesWellConfigured(PostgreSqlServer.RESOURCE_TYPE);
+        checkAllResourcesWellConfigured(UnixUser.RESOURCE_TYPE);
+        checkAllResourcesWellConfigured(UrlRedirection.RESOURCE_TYPE);
+        checkAllResourcesWellConfigured(Website.RESOURCE_TYPE);
+        checkAllResourcesWellConfigured(WebsiteCertificate.RESOURCE_TYPE);
 
     }
 
@@ -89,12 +96,11 @@ public class CheckCommands extends AbstractBasics {
                         Map<String, Object> resource = (Map<String, Object>) resourceBucket.getResourceDetails().getResource();
                         String resourceName = (String) resource.get("resourceName");
                         System.out.println("-> " + resourceName);
-                        RequestResourceToUpdate resourceToUpdate = new RequestResourceToUpdate(resourceBucket.getResourceDetails(), resourceBucket.getResourceDetails());
                         ResponseResourceAppliedChanges resourceAppliedChanges = infraApiService.getInfraResourceApiService()
-                                .applyChanges(new RequestChanges().setResourcesToUpdate(Collections.singletonList(resourceToUpdate)));
+                                .applyChanges(new RequestChanges().setResourcesToRefreshPk(Collections.singletonList(resourceBucket.getResourceDetails())));
 
                         // Show only if more than 1 change
-                        if (resourceAppliedChanges.isSuccess() && resourceAppliedChanges.getAuditItems().getItems().size() == 1) {
+                        if (resourceAppliedChanges.isSuccess() && resourceAppliedChanges.getAuditItems().getItems().size() == 0) {
                             System.out.println("[SUCCESS] Applying update and nothing changed (" + resourceAppliedChanges.getTxId() + ")");
                         } else {
                             exceptionService.displayResult(resourceAppliedChanges, "Applying update");
