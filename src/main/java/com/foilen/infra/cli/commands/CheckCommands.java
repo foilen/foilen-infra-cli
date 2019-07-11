@@ -10,7 +10,6 @@
 package com.foilen.infra.cli.commands;
 
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +58,12 @@ public class CheckCommands extends AbstractBasics {
     @Autowired
     private ProfileService profileService;
 
+    private void apply(InfraApiService infraApiService, RequestChanges requestChanges) {
+        ResponseResourceAppliedChanges resourceAppliedChanges = infraApiService.getInfraResourceApiService().applyChanges(requestChanges);
+        exceptionService.displayResult(resourceAppliedChanges, "Applying refresh");
+        requestChanges.getResourcesToRefreshPk().clear();
+    }
+
     @ShellMethod("Refresh some resources to ensure the updates were propagated")
     public void checkAllResourcesWellConfigured() {
 
@@ -90,25 +95,28 @@ public class CheckCommands extends AbstractBasics {
             return;
         }
 
+        RequestChanges requestChanges = new RequestChanges();
+
         resourceBuckets.getItems().stream() //
                 .forEach(resourceBucket -> {
                     try {
                         Map<String, Object> resource = (Map<String, Object>) resourceBucket.getResourceDetails().getResource();
                         String resourceName = (String) resource.get("resourceName");
                         System.out.println("-> " + resourceName);
-                        ResponseResourceAppliedChanges resourceAppliedChanges = infraApiService.getInfraResourceApiService()
-                                .applyChanges(new RequestChanges().setResourcesToRefreshPk(Collections.singletonList(resourceBucket.getResourceDetails())));
 
-                        // Show only if more than 1 change
-                        if (resourceAppliedChanges.isSuccess() && resourceAppliedChanges.getAuditItems().getItems().size() == 0) {
-                            System.out.println("[SUCCESS] Applying update and nothing changed (" + resourceAppliedChanges.getTxId() + ")");
-                        } else {
-                            exceptionService.displayResult(resourceAppliedChanges, "Applying update");
+                        requestChanges.getResourcesToRefreshPk().add(resourceBucket.getResourceDetails());
+                        if (requestChanges.getResourcesToRefreshPk().size() >= 10) {
+                            apply(infraApiService, requestChanges);
                         }
+
                     } catch (Throwable e) {
                         System.out.println("Problem: " + e.getMessage());
                     }
                 });
+
+        if (!requestChanges.getResourcesToRefreshPk().isEmpty()) {
+            apply(infraApiService, requestChanges);
+        }
     }
 
     @ShellMethod("List the Web Certificates that will expire this month (sooner first)")
