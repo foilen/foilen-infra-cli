@@ -53,7 +53,7 @@ public class ExceptionService {
             displayService.display("\tApplied modifications (" + auditItems.getItems().size() + "/" + auditItemsPagination.getTotalItems() + ")");
             auditItems.getItems().forEach(it -> {
                 StringBuilder line = new StringBuilder();
-                line.append("\t\t").append(it.getAction()).append(it.getType()).append(" ");
+                line.append("\t\t").append(it.getAction()).append(" ").append(it.getType()).append(": ");
                 switch (it.getType()) {
                 case LINK:
                     line.append(getResourceDetailsText(it.getResourceFirst()));
@@ -63,14 +63,14 @@ public class ExceptionService {
                     line.append(getResourceDetailsText(it.getResourceSecond()));
                     break;
                 case RESOURCE:
-                    getResourceDetailsText(it.getResourceFirst());
+                    line.append(getResourceDetailsText(it.getResourceFirst()));
                     if (it.getResourceSecond() != null) {
                         line.append(" -> ");
-                        getResourceDetailsText(it.getResourceSecond());
+                        line.append(getResourceDetailsText(it.getResourceSecond()));
                     }
                     break;
                 case TAG:
-                    getResourceDetailsText(it.getResourceFirst());
+                    line.append(getResourceDetailsText(it.getResourceFirst()));
                     line.append(" -> ");
                     line.append(it.getTagName());
                     break;
@@ -131,7 +131,7 @@ public class ExceptionService {
     }
 
     private String getResourceDetailsText(ResourceDetailsSmall resource) {
-        return resource.getResourceType() + "/" + resource.getResourceName();
+        return resource.getResourceType() + " / " + resource.getResourceName();
     }
 
 }
