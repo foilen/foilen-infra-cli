@@ -37,10 +37,11 @@ sourceCompatibility = 1.11
 
 dependencies {
   compile 'com.foilen:jl-smalltools:0.46.3'
-  compile 'org.freemarker:freemarker:2.3.23'
+  compile "javax.xml.bind:jaxb-api:2.3.1"
   compile 'com.jcraft:jsch:0.1.54'
   compile 'com.foilen:foilen-infra-api:0.6.1'
   compile 'com.foilen:foilen-infra-plugins-core:0.7.4'
+  compile 'org.freemarker:freemarker:2.3.23'
   compile 'org.jsoup:jsoup:1.11.3'
   compile 'org.springframework.data:spring-data-jpa'
   compile('org.springframework.shell:spring-shell-starter:2.0.1.RELEASE')
