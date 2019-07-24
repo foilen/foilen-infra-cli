@@ -18,13 +18,20 @@ import org.springframework.shell.Availability;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellMethodAvailability;
+import org.springframework.shell.standard.ShellOption;
 
 import com.foilen.infra.api.model.ResourceBucket;
+import com.foilen.infra.api.model.ResourceDetails;
+import com.foilen.infra.api.request.RequestChanges;
 import com.foilen.infra.api.request.RequestResourceSearch;
+import com.foilen.infra.api.request.RequestResourceToUpdate;
+import com.foilen.infra.api.response.ResponseResourceAppliedChanges;
 import com.foilen.infra.api.response.ResponseResourceBuckets;
 import com.foilen.infra.api.service.InfraApiService;
+import com.foilen.infra.api.service.InfraResourceApiService;
 import com.foilen.infra.cli.CliException;
 import com.foilen.infra.cli.model.profile.ApiProfile;
+import com.foilen.infra.cli.services.ExceptionService;
 import com.foilen.infra.cli.services.ProfileService;
 import com.foilen.infra.plugin.v1.model.resource.LinkTypeConstants;
 import com.foilen.infra.resource.apachephp.ApachePhp;
@@ -32,10 +39,13 @@ import com.foilen.infra.resource.machine.Machine;
 import com.foilen.infra.resource.website.Website;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.JsonTools;
+import com.foilen.smalltools.tools.StringTools;
 
 @ShellComponent
 public class PhpCommands extends AbstractBasics {
 
+    @Autowired
+    private ExceptionService exceptionService;
     @Autowired
     private ProfileService profileService;
 
@@ -164,6 +174,50 @@ public class PhpCommands extends AbstractBasics {
                     });
 
                 });
+
+    }
+
+    @ShellMethod("Update the docker manager on all the machines")
+    public void phpUpdate( //
+            @ShellOption(help = "Update only the ApachePhp resources that currently use that version") String fromVersion, //
+            String toVersion //
+    ) {
+
+        // Get the list of PHP applications
+        System.out.println("Find the resources with PHP version " + fromVersion);
+        InfraApiService infraApiService = profileService.getTargetInfraApiService();
+        InfraResourceApiService infraResourceApiService = infraApiService.getInfraResourceApiService();
+        RequestResourceSearch requestResourceSearch = new RequestResourceSearch().setResourceType(ApachePhp.RESOURCE_TYPE);
+        // TODO When supported by the plugin - requestResourceSearch.getProperties().put(ApachePhp.PROPERTY_VERSION, fromVersion);
+        ResponseResourceBuckets resourceBuckets = infraResourceApiService.resourceFindAll(requestResourceSearch);
+        exceptionService.displayResultAndThrow(resourceBuckets, "Find the resources with PHP version " + fromVersion);
+
+        RequestChanges changes = new RequestChanges();
+        resourceBuckets.getItems().stream() //
+                .map(resourceBucket -> JsonTools.clone(resourceBucket.getResourceDetails().getResource(), ApachePhp.class)) //
+                .filter(apachePhp -> StringTools.safeEquals(fromVersion, apachePhp.getVersion())) // TODO Remove when can search directly
+                .forEach(apachePhp -> {
+
+                    System.out.println(apachePhp.getName());
+
+                    // Change the version
+                    apachePhp.setVersion(toVersion);
+                    ResourceDetails resourceDetails = new ResourceDetails(ApachePhp.RESOURCE_TYPE, apachePhp);
+                    changes.getResourcesToUpdate().add(new RequestResourceToUpdate(resourceDetails, resourceDetails));
+
+                    // Update in batch of 10
+                    if (changes.getResourcesToUpdate().size() >= 10) {
+                        ResponseResourceAppliedChanges resourceAppliedChanges = infraResourceApiService.applyChanges(changes);
+                        exceptionService.displayResult(resourceAppliedChanges, "Applying update");
+                        changes.getResourcesToUpdate().clear();
+                    }
+                });
+
+        // If some pending
+        if (!changes.getResourcesToUpdate().isEmpty()) {
+            ResponseResourceAppliedChanges resourceAppliedChanges = infraResourceApiService.applyChanges(changes);
+            exceptionService.displayResult(resourceAppliedChanges, "Applying update");
+        }
 
     }
 
