@@ -40,7 +40,7 @@ dependencies {
   compile "javax.xml.bind:jaxb-api:2.3.1"
   compile 'com.jcraft:jsch:0.1.54'
   compile 'com.foilen:foilen-infra-api:0.6.1'
-  compile 'com.foilen:foilen-infra-plugins-core:0.8.5'
+  compile 'com.foilen:foilen-infra-plugins-core:0.8.6'
   compile 'org.freemarker:freemarker:2.3.23'
   compile 'org.jsoup:jsoup:1.11.3'
   compile 'org.springframework.data:spring-data-jpa'

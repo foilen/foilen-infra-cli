@@ -177,7 +177,7 @@ public class PhpCommands extends AbstractBasics {
 
     }
 
-    @ShellMethod("Update the docker manager on all the machines")
+    @ShellMethod("Update the PHP applications")
     public void phpUpdate( //
             @ShellOption(help = "Update only the ApachePhp resources that currently use that version") String fromVersion, //
             String toVersion //
