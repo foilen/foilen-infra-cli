@@ -36,7 +36,8 @@ repositories {
 sourceCompatibility = 1.11
 
 dependencies {
-  compile 'com.foilen:jl-smalltools:0.47.1'
+  compile 'com.foilen:jl-smalltools:0.49.0'
+  compile 'dnsjava:dnsjava:2.1.9'
   compile "javax.xml.bind:jaxb-api:2.3.1"
   compile 'com.jcraft:jsch:0.1.54'
   compile 'com.foilen:foilen-infra-api:0.6.1'
