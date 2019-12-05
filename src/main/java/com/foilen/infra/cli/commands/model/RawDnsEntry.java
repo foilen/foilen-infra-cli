@@ -17,6 +17,7 @@ public class RawDnsEntry extends AbstractBasics implements Comparable<RawDnsEntr
     private String name;
     private String type;
     private String details;
+
     private Integer priority;
     private long ttl;
 

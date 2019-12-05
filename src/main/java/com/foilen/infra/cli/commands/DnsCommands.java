@@ -21,9 +21,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.shell.Availability;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
+import org.springframework.shell.standard.ShellMethodAvailability;
 import org.springframework.shell.standard.ShellOption;
 import org.xbill.DNS.AAAARecord;
 import org.xbill.DNS.ARecord;
@@ -36,7 +40,17 @@ import org.xbill.DNS.SimpleResolver;
 import org.xbill.DNS.TXTRecord;
 import org.xbill.DNS.Type;
 
+import com.foilen.infra.api.request.RequestResourceSearch;
+import com.foilen.infra.api.response.ResponseResourceBuckets;
+import com.foilen.infra.api.service.InfraApiService;
+import com.foilen.infra.cli.CliException;
 import com.foilen.infra.cli.commands.model.RawDnsEntry;
+import com.foilen.infra.cli.model.profile.ApiProfile;
+import com.foilen.infra.cli.services.ExceptionService;
+import com.foilen.infra.cli.services.ProfileService;
+import com.foilen.infra.resource.dns.DnsEntry;
+import com.foilen.smalltools.listscomparator.ListComparatorHandler;
+import com.foilen.smalltools.listscomparator.ListsComparator;
 import com.foilen.smalltools.reflection.ReflectionTools;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.JsonTools;
@@ -45,10 +59,67 @@ import com.google.common.base.Strings;
 @ShellComponent
 public class DnsCommands extends AbstractBasics {
 
+    @Autowired
+    private ExceptionService exceptionService;
+
+    @Autowired
+    private ProfileService profileService;
+
     private void addSubDomains(Collection<String> hostnames, String hostname, String... subs) {
         for (String sub : subs) {
             hostnames.add(sub + "." + hostname);
         }
+    }
+
+    @ShellMethod("Look the current DNS entries for a hostname with common sub-domains and compare with what is in the target profile (ignoring ttl and MX priority")
+    public void dnsCompareWithTarget( //
+            String hostname, //
+            @ShellOption(defaultValue = ShellOption.NULL) String moreSubDomains, //
+            @ShellOption(defaultValue = ShellOption.NULL) String usingDnsServer //
+    ) {
+
+        // get source
+        List<DnsEntry> sourceDnsEntries = listRawDnsEntries(hostname, moreSubDomains, usingDnsServer).stream() //
+                .map(it -> JsonTools.clone(it, DnsEntry.class)) //
+                .sorted().distinct() //
+                .collect(Collectors.toList());
+
+        // Get target
+        InfraApiService infraApiService = profileService.getTargetInfraApiService();
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(DnsEntry.RESOURCE_TYPE));
+        exceptionService.displayResultAndThrow(resourceBuckets, "Get DNS List");
+        if (!resourceBuckets.isSuccess()) {
+            throw new CliException(resourceBuckets.getError());
+        }
+
+        List<DnsEntry> targetDnsEntries = resourceBuckets.getItems().stream() //
+                .map(resourceBucket -> JsonTools.clone(resourceBucket.getResourceDetails().getResource(), DnsEntry.class)) //
+                .filter(dnsEntry -> dnsEntry.getName().endsWith(hostname)) //
+                .sorted().distinct() //
+                .collect(Collectors.toList());
+
+        // Compare
+        ListsComparator.compareLists(sourceDnsEntries, targetDnsEntries, new ListComparatorHandler<DnsEntry, DnsEntry>() {
+
+            private String asString(DnsEntry entry) {
+                return entry.getName() + " " + entry.getType() + " -> " + entry.getDetails();
+            }
+
+            @Override
+            public void both(DnsEntry left, DnsEntry right) {
+            }
+
+            @Override
+            public void leftOnly(DnsEntry left) {
+                System.out.println("ADD\t" + asString(left));
+            }
+
+            @Override
+            public void rightOnly(DnsEntry right) {
+                System.out.println("REMOVE\t" + asString(right));
+            }
+        });
+
     }
 
     @ShellMethod("Look the current DNS entries for a hostname with common sub-domains")
@@ -58,6 +129,28 @@ public class DnsCommands extends AbstractBasics {
             @ShellOption(defaultValue = ShellOption.NULL) String usingDnsServer //
     ) {
 
+        List<RawDnsEntry> dnsEntries = listRawDnsEntries(hostname, moreSubDomains, usingDnsServer);
+        System.out.println("\n\n---[" + hostname + "]---");
+        dnsEntries.stream().sorted().distinct() //
+                .forEach(it -> System.out.println(JsonTools.compactPrintWithoutNulls(it)));
+
+    }
+
+    @ShellMethodAvailability
+    public Availability isAvailable() {
+
+        if (profileService.getTarget() == null) {
+            return Availability.unavailable("you did not specify a target profile");
+        }
+
+        if (profileService.getTarget() instanceof ApiProfile) {
+            return Availability.available();
+        }
+
+        return Availability.unavailable("the target profile is not of API type");
+    }
+
+    private List<RawDnsEntry> listRawDnsEntries(String hostname, String moreSubDomains, String usingDnsServer) {
         // Hostnames to check
         Deque<String> hostnames = new LinkedList<>();
         hostnames.add(hostname);
@@ -166,10 +259,7 @@ public class DnsCommands extends AbstractBasics {
         }
 
         Collections.sort(dnsEntries);
-        System.out.println("\n\n---[" + hostname + "]---");
-        dnsEntries.stream().sorted().distinct() //
-                .forEach(it -> System.out.println(JsonTools.compactPrintWithoutNulls(it)));
-
+        return dnsEntries;
     }
 
 }
