@@ -12,8 +12,8 @@ package com.foilen.infra.cli.services;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import com.foilen.infra.api.model.AuditItemSmallWithPagination;
-import com.foilen.infra.api.model.ResourceDetailsSmall;
+import com.foilen.infra.api.model.audit.AuditItemSmallWithPagination;
+import com.foilen.infra.api.model.resource.ResourceDetailsSmall;
 import com.foilen.infra.api.response.ResponseResourceAppliedChanges;
 import com.foilen.infra.cli.CliException;
 import com.foilen.smalltools.restapi.model.AbstractApiBaseWithError;
@@ -73,6 +73,10 @@ public class ExceptionService {
                     line.append(getResourceDetailsText(it.getResourceFirst()));
                     line.append(" -> ");
                     line.append(it.getTagName());
+                    break;
+                case DOCUMENT:
+                    break;
+                default:
                     break;
                 }
                 displayService.display(line.toString());

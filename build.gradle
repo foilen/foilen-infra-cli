@@ -1,6 +1,6 @@
 buildscript {
   ext {
-    springBootVersion = '2.1.8.RELEASE'
+    springBootVersion = '2.3.1.RELEASE'
   }
   repositories {
     mavenCentral()
@@ -11,7 +11,7 @@ buildscript {
 }
 
 plugins {
-  id "com.jfrog.bintray" version "1.8.4"
+  id "com.jfrog.bintray" version "1.8.5"
 }
 
 apply plugin: 'java'
@@ -36,14 +36,14 @@ repositories {
 sourceCompatibility = 1.11
 
 dependencies {
-  compile 'com.foilen:jl-smalltools:0.49.0'
-  compile 'dnsjava:dnsjava:2.1.9'
+  compile 'com.foilen:jl-smalltools:0.53.0'
+  compile 'dnsjava:dnsjava:3.2.1'
   compile "javax.xml.bind:jaxb-api:2.3.1"
-  compile 'com.jcraft:jsch:0.1.54'
-  compile 'com.foilen:foilen-infra-api:0.6.1'
-  compile 'com.foilen:foilen-infra-plugins-core:0.8.6'
+  compile 'com.jcraft:jsch:0.1.55'
+  compile 'com.foilen:foilen-infra-api:0.7.0'
+  compile 'com.foilen:foilen-infra-plugins-core:0.14.0'
   compile 'org.freemarker:freemarker:2.3.23'
-  compile 'org.jsoup:jsoup:1.11.3'
+  compile 'org.jsoup:jsoup:1.13.1'
   compile 'org.springframework.data:spring-data-jpa'
   compile('org.springframework.shell:spring-shell-starter:2.0.1.RELEASE')
   testCompile('org.springframework.boot:spring-boot-starter-test')
