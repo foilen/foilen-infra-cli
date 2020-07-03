@@ -90,6 +90,7 @@ public class ExceptionService {
     public void displayResultAndThrow(AbstractApiBaseWithError formResult, String context) {
         displayResult(formResult, context);
         if (!formResult.isSuccess()) {
+            displayResultError(formResult, context);
             throw new CliException();
         }
     }
@@ -104,6 +105,10 @@ public class ExceptionService {
     private void displayResultError(AbstractApiBaseWithError formResult, String context) {
         displayService.display("[ERROR] " + context);
 
+        if (formResult == null) {
+            displayService.display("\tGot a null response");
+            return;
+        }
         ApiError error = formResult.getError();
         if (error != null) {
             displayService.display("\t" + error.getTimestamp() + " " + error.getUniqueId() + " : " + error.getMessage());
@@ -136,6 +141,13 @@ public class ExceptionService {
 
     private String getResourceDetailsText(ResourceDetailsSmall resource) {
         return resource.getResourceType() + " / " + resource.getResourceName();
+    }
+
+    public void throwOnFailure(AbstractApiBaseWithError formResult, String context) {
+        if (formResult == null || !formResult.isSuccess()) {
+            displayResultError(formResult, context);
+            throw new CliException();
+        }
     }
 
 }
