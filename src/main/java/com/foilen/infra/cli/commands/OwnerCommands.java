@@ -150,4 +150,23 @@ public class OwnerCommands extends AbstractBasics {
 
     }
 
+    @SuppressWarnings("unchecked")
+    @ShellMethod("List the resources without owner")
+    public void ownerOrphan() {
+
+        // Get the list of orphans
+        InfraApiService infraApiService = profileService.getTargetInfraApiService();
+        InfraResourceApiService infraResourceApiService = infraApiService.getInfraResourceApiService();
+        ResponseResourceBuckets resourcesWithoutOwner = infraResourceApiService.resourceFindAllWithoutOwner();
+        exceptionService.displayResultAndThrow(resourcesWithoutOwner, "Get orphans");
+
+        // Display
+        resourcesWithoutOwner.getItems().stream() //
+                .map(rB -> (Map<String, Object>) rB.getResourceDetails().getResource()) //
+                .map(r -> r.get("resourceName") + " (" + r.get("internalId") + ")") //
+                .sorted() //
+                .forEach(r -> System.out.println(r));
+
+    }
+
 }
