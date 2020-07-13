@@ -93,7 +93,7 @@ public class OwnerCommands extends AbstractBasics {
             futures.add(executorService.submit(() -> {
 
                 String resourceType = type.getResourceType();
-                ResponseResourceBuckets resourceBuckets = infraResourceApiService.resourceFindAll(new RequestResourceSearch().setResourceType(resourceType));
+                ResponseResourceBuckets resourceBuckets = infraResourceApiService.resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(resourceType));
                 exceptionService.displayResultAndThrow(allTypes, "Get the matching resources of type " + resourceType);
                 resourceBuckets.getItems().stream() //
                         .map(rB -> (Map<String, Object>) rB.getResourceDetails().getResource()) //

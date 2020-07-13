@@ -89,7 +89,7 @@ public class CheckCommands extends AbstractBasics {
 
         // Get the list
         System.out.println("---[ " + resourceType + " ]---");
-        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(resourceType));
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(resourceType));
         exceptionService.displayResult(resourceBuckets, "Get resources");
         if (!resourceBuckets.isSuccess()) {
             return;
@@ -124,7 +124,7 @@ public class CheckCommands extends AbstractBasics {
 
         // Get the list
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
-        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(WebsiteCertificate.RESOURCE_TYPE));
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(WebsiteCertificate.RESOURCE_TYPE));
         if (!resourceBuckets.isSuccess()) {
             throw new CliException(resourceBuckets.getError());
         }
@@ -145,7 +145,7 @@ public class CheckCommands extends AbstractBasics {
 
         // Get the list
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
-        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(WebsiteCertificate.RESOURCE_TYPE));
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(WebsiteCertificate.RESOURCE_TYPE));
         if (!resourceBuckets.isSuccess()) {
             throw new CliException(resourceBuckets.getError());
         }

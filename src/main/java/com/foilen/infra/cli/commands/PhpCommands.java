@@ -68,7 +68,7 @@ public class PhpCommands extends AbstractBasics {
 
         // Get the list of PHP applications
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
-        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(ApachePhp.RESOURCE_TYPE));
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(ApachePhp.RESOURCE_TYPE));
         if (!resourceBuckets.isSuccess()) {
             throw new CliException(resourceBuckets.getError());
         }
@@ -117,7 +117,7 @@ public class PhpCommands extends AbstractBasics {
 
         // Get the list of PHP applications
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
-        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(ApachePhp.RESOURCE_TYPE));
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(ApachePhp.RESOURCE_TYPE));
         if (!resourceBuckets.isSuccess()) {
             throw new CliException(resourceBuckets.getError());
         }
@@ -189,7 +189,7 @@ public class PhpCommands extends AbstractBasics {
         InfraResourceApiService infraResourceApiService = infraApiService.getInfraResourceApiService();
         RequestResourceSearch requestResourceSearch = new RequestResourceSearch().setResourceType(ApachePhp.RESOURCE_TYPE);
         // TODO When supported by the plugin - requestResourceSearch.getProperties().put(ApachePhp.PROPERTY_VERSION, fromVersion);
-        ResponseResourceBuckets resourceBuckets = infraResourceApiService.resourceFindAll(requestResourceSearch);
+        ResponseResourceBuckets resourceBuckets = infraResourceApiService.resourceFindAllWithDetails(requestResourceSearch);
         exceptionService.displayResultAndThrow(resourceBuckets, "Find the resources with PHP version " + fromVersion);
 
         RequestChanges changes = new RequestChanges();

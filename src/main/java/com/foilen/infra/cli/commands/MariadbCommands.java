@@ -68,7 +68,7 @@ public class MariadbCommands extends AbstractBasics {
 
         // Get the list of applications
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
-        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(MariaDBServer.RESOURCE_TYPE));
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(MariaDBServer.RESOURCE_TYPE));
         if (!resourceBuckets.isSuccess()) {
             throw new CliException(resourceBuckets.getError());
         }
@@ -99,7 +99,7 @@ public class MariadbCommands extends AbstractBasics {
 
         // Get the list of MariaDB applications
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
-        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(MariaDBServer.RESOURCE_TYPE));
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(MariaDBServer.RESOURCE_TYPE));
         if (!resourceBuckets.isSuccess()) {
             throw new CliException(resourceBuckets.getError());
         }
@@ -153,7 +153,7 @@ public class MariadbCommands extends AbstractBasics {
         InfraResourceApiService infraResourceApiService = infraApiService.getInfraResourceApiService();
         RequestResourceSearch requestResourceSearch = new RequestResourceSearch().setResourceType(MariaDBServer.RESOURCE_TYPE);
         // TODO When supported by the plugin - requestResourceSearch.getProperties().put(MariaDBServer.PROPERTY_VERSION, fromVersion);
-        ResponseResourceBuckets resourceBuckets = infraResourceApiService.resourceFindAll(requestResourceSearch);
+        ResponseResourceBuckets resourceBuckets = infraResourceApiService.resourceFindAllWithDetails(requestResourceSearch);
         exceptionService.displayResultAndThrow(resourceBuckets, "Find the resources with MariaDB version " + fromVersion);
 
         RequestChanges changes = new RequestChanges();

@@ -40,7 +40,7 @@ dependencies {
   compile 'dnsjava:dnsjava:3.2.1'
   compile "javax.xml.bind:jaxb-api:2.3.1"
   compile 'com.jcraft:jsch:0.1.55'
-  compile 'com.foilen:foilen-infra-api:0.7.0'
+  compile 'com.foilen:foilen-infra-api:0.7.1'
   compile 'com.foilen:foilen-infra-plugins-core:0.14.0'
   compile 'org.freemarker:freemarker:2.3.23'
   compile 'org.jsoup:jsoup:1.13.1'

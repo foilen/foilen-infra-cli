@@ -113,7 +113,7 @@ public class UpdateCommands extends AbstractBasics {
 
         // Get the list of machines
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
-        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType("Machine"));
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType("Machine"));
         if (!resourceBuckets.isSuccess()) {
             throw new CliException(resourceBuckets.getError());
         }
@@ -191,7 +191,7 @@ public class UpdateCommands extends AbstractBasics {
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
 
         // Update Plugins
-        ResponseResourceBuckets pluginsBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(RESOURCE_TYPE_INFRASTRUCTURE_PLUGIN));
+        ResponseResourceBuckets pluginsBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(RESOURCE_TYPE_INFRASTRUCTURE_PLUGIN));
         if (!pluginsBuckets.isSuccess()) {
             throw new CliException("Could not get the list of plugins: " + JsonTools.compactPrint(pluginsBuckets));
         }
@@ -286,7 +286,7 @@ public class UpdateCommands extends AbstractBasics {
 
         // Get the list of machines
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
-        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType("Machine"));
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType("Machine"));
         if (!resourceBuckets.isSuccess()) {
             throw new CliException(resourceBuckets.getError());
         }

@@ -48,7 +48,7 @@ public class CheckServiceImpl extends AbstractBasics implements CheckService {
         // Get the list
         displayService.display("Retrieve the websites list");
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
-        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(Website.RESOURCE_TYPE));
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(Website.RESOURCE_TYPE));
         exceptionService.displayResultAndThrow(resourceBuckets, "Retrieve the websites list");
 
         // Get the list

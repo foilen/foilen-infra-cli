@@ -86,7 +86,7 @@ public class DnsCommands extends AbstractBasics {
 
         // Get target
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
-        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAll(new RequestResourceSearch().setResourceType(DnsEntry.RESOURCE_TYPE));
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(DnsEntry.RESOURCE_TYPE));
         exceptionService.displayResultAndThrow(resourceBuckets, "Get DNS List");
         if (!resourceBuckets.isSuccess()) {
             throw new CliException(resourceBuckets.getError());
