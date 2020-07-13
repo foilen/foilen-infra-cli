@@ -34,7 +34,6 @@ import com.foilen.infra.api.model.resource.ResourceDetails;
 import com.foilen.infra.api.request.RequestChanges;
 import com.foilen.infra.api.request.RequestResourceSearch;
 import com.foilen.infra.api.request.RequestResourceToUpdate;
-import com.foilen.infra.api.response.ResponseResourceBucket;
 import com.foilen.infra.api.response.ResponseResourceBuckets;
 import com.foilen.infra.api.response.ResponseResourceTypesDetails;
 import com.foilen.infra.api.service.InfraApiService;
@@ -103,32 +102,32 @@ public class OwnerCommands extends AbstractBasics {
                 ResponseResourceBuckets resourceBuckets = infraResourceApiService.resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(resourceType));
                 exceptionService.displayResultAndThrow(allTypes, "Get the matching resources of type " + resourceType);
                 resourceBuckets.getItems().stream() //
-                        .map(rB -> (Map<String, Object>) rB.getResourceDetails().getResource()) //
-                        .filter(r -> nameStartsWith == null || ((String) r.get("resourceName")).startsWith(nameStartsWith)) //
-                        .filter(r -> nameContains == null || ((String) r.get("resourceName")).contains(nameContains)) //
-                        .filter(r -> nameEndsWith == null || ((String) r.get("resourceName")).endsWith(nameEndsWith)) //
-                        .forEach(r -> {
-                            String resourceId = (String) r.get("internalId");
-                            System.out.println("\t" + r.get("resourceName") + " (" + resourceId + ")");
+                        .map(rB -> rB.getResourceDetails()) //
+                        .filter(resourceDetails -> {
+                            String resourceName = (String) ((Map<String, Object>) resourceDetails.getResource()).get("resourceName");
+                            if (resourceName == null) {
+                                return false;
+                            }
+                            boolean matches = nameStartsWith == null || resourceName.startsWith(nameStartsWith);
+                            matches &= nameContains == null || resourceName.contains(nameContains);
+                            matches &= nameEndsWith == null || resourceName.endsWith(nameEndsWith);
+                            return matches;
+                        }) //
+                        .forEach(resourceDetails -> {
+                            Map<String, Object> detailedResource = ((Map<String, Object>) resourceDetails.getResource());
+                            String resourceId = (String) detailedResource.get("internalId");
+                            System.out.println("\t" + detailedResource.get("resourceName") + " (" + resourceId + ")");
 
-                            // Get all the details of the resource
-                            futures.add(executorService.submit(() -> {
-                                ResponseResourceBucket resourceBucket = infraResourceApiService.resourceFindById(resourceId);
-                                exceptionService.throwOnFailure(resourceBucket, "Get the resource " + resourceId);
-                                ResourceDetails resourceDetails = resourceBucket.getItem().getResourceDetails();
-                                Map<String, Object> detailedResource = (Map<String, Object>) resourceDetails.getResource();
-
-                                // Check the owner
-                                Map<String, String> meta = (Map<String, String>) detailedResource.get("meta");
-                                String currentOwner = meta.get("UI_OWNER");
-                                if (StringTools.safeEquals(currentOwner, owner)) {
-                                    System.out.println("\t\t[SKIP] Owner is already " + owner);
-                                } else {
-                                    System.out.println("\t\t[CHANGE] Change owner " + currentOwner + " -> " + owner);
-                                    meta.put("UI_OWNER", owner);
-                                    resourceDetailsToUpdate.add(resourceDetails);
-                                }
-                            }));
+                            // Check the owner
+                            Map<String, String> meta = (Map<String, String>) detailedResource.get("meta");
+                            String currentOwner = meta.get("UI_OWNER");
+                            if (StringTools.safeEquals(currentOwner, owner)) {
+                                System.out.println("\t\t[SKIP] Owner is already " + owner);
+                            } else {
+                                System.out.println("\t\t[CHANGE] Change owner " + currentOwner + " -> " + owner);
+                                meta.put("UI_OWNER", owner);
+                                resourceDetailsToUpdate.add(resourceDetails);
+                            }
                         });
                 ;
             }));
