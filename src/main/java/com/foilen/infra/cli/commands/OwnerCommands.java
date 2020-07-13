@@ -25,6 +25,11 @@ import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellMethodAvailability;
 import org.springframework.shell.standard.ShellOption;
 
+import com.foilen.infra.api.model.permission.LinkAction;
+import com.foilen.infra.api.model.permission.PermissionLink;
+import com.foilen.infra.api.model.permission.PermissionResource;
+import com.foilen.infra.api.model.permission.ResourceAction;
+import com.foilen.infra.api.model.permission.RoleEditForm;
 import com.foilen.infra.api.model.resource.ResourceDetails;
 import com.foilen.infra.api.request.RequestChanges;
 import com.foilen.infra.api.request.RequestResourceSearch;
@@ -34,10 +39,12 @@ import com.foilen.infra.api.response.ResponseResourceBuckets;
 import com.foilen.infra.api.response.ResponseResourceTypesDetails;
 import com.foilen.infra.api.service.InfraApiService;
 import com.foilen.infra.api.service.InfraResourceApiService;
+import com.foilen.infra.api.service.InfraRoleApiService;
 import com.foilen.infra.cli.CliException;
 import com.foilen.infra.cli.model.profile.ApiProfile;
 import com.foilen.infra.cli.services.ExceptionService;
 import com.foilen.infra.cli.services.ProfileService;
+import com.foilen.smalltools.restapi.model.FormResult;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.BufferBatchesTools;
 import com.foilen.smalltools.tools.CollectionsTools;
@@ -72,7 +79,7 @@ public class OwnerCommands extends AbstractBasics {
             @ShellOption(defaultValue = ShellOption.NULL) String nameStartsWith, //
             @ShellOption(defaultValue = ShellOption.NULL) String nameContains, //
             @ShellOption(defaultValue = ShellOption.NULL) String nameEndsWith, //
-            @ShellOption String owner//
+            @ShellOption String owner //
     ) {
 
         if (!CollectionsTools.isAnyItemNotNull(nameStartsWith, nameContains, nameEndsWith)) {
@@ -147,6 +154,44 @@ public class OwnerCommands extends AbstractBasics {
             batches.add(resourceDetailsToUpdate.stream().collect(Collectors.toList()));
             batches.close();
         }
+
+    }
+
+    @ShellMethod("Create an owner with a role")
+    public void ownerCreate( //
+            @ShellOption String owner //
+    ) {
+
+        InfraApiService infraApiService = profileService.getTargetInfraApiService();
+        InfraRoleApiService infraRoleApiService = infraApiService.getInfraRoleApiService();
+
+        String roleName = owner + "_all";
+        FormResult result = infraRoleApiService.roleAdd(roleName);
+        exceptionService.displayResultAndThrow(result, "Add role");
+
+        RoleEditForm roleEditForm = new RoleEditForm();
+        roleEditForm.getResources().add(new PermissionResource() //
+                .setAction(ResourceAction.ALL) //
+                .setExplicitChange(true) //
+                .setType("*") //
+                .setOwner(owner) //
+        );
+        roleEditForm.getLinks().add(new PermissionLink() //
+                .setAction(LinkAction.ALL) //
+                .setExplicitChange(true) //
+                .setFromType("*") //
+                .setFromOwner(owner) //
+                .setLinkType("*") //
+        );
+        roleEditForm.getLinks().add(new PermissionLink() //
+                .setAction(LinkAction.ALL) //
+                .setExplicitChange(true) //
+                .setLinkType("*") //
+                .setToType("*") //
+                .setToOwner(owner) //
+        );
+        result = infraRoleApiService.roleEdit(roleName, roleEditForm);
+        exceptionService.displayResultAndThrow(result, "Edit role");
 
     }
 

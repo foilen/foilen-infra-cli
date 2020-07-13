@@ -191,7 +191,8 @@ public class UpdateCommands extends AbstractBasics {
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
 
         // Update Plugins
-        ResponseResourceBuckets pluginsBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(RESOURCE_TYPE_INFRASTRUCTURE_PLUGIN));
+        ResponseResourceBuckets pluginsBuckets = infraApiService.getInfraResourceApiService()
+                .resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(RESOURCE_TYPE_INFRASTRUCTURE_PLUGIN));
         if (!pluginsBuckets.isSuccess()) {
             throw new CliException("Could not get the list of plugins: " + JsonTools.compactPrint(pluginsBuckets));
         }
