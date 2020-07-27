@@ -102,6 +102,13 @@ public class ExceptionService {
         }
     }
 
+    public void displayResultAndThrow(ResponseResourceAppliedChanges formResult, String context) {
+        displayResult(formResult, context);
+        if (!formResult.isSuccess()) {
+            throw new CliException();
+        }
+    }
+
     private void displayResultError(AbstractApiBaseWithError formResult, String context) {
         displayService.display("[ERROR] " + context);
 

@@ -68,6 +68,24 @@ public class SshService extends AbstractBasics {
         return jsch;
     }
 
+    public void executeCommandInLoggerTarget(String hostname, String command) {
+
+        ProfileHasCert targetProfileHasCert = profileService.getTargetAsOrFail(ProfileHasCert.class);
+
+        JSchTools jSchTools = new JSchTools();
+        try {
+
+            jSchTools.login(new SshLogin(hostname, "root") //
+                    .withPrivateKey(targetProfileHasCert.getSshCertificateFile()) //
+                    .autoApproveHostKey());
+
+            jSchTools.executeInLogger(command);
+        } finally {
+            jSchTools.disconnect();
+        }
+
+    }
+
     /**
      * Sync files between machines using rsync
      *
@@ -320,6 +338,26 @@ public class SshService extends AbstractBasics {
             ThreadTools.sleep(10000);
         }
         System.out.println();
+
+    }
+
+    public void waitUserIsPresent(String hostname, String username) {
+
+        ProfileHasCert targetProfileHasCert = profileService.getTargetAsOrFail(ProfileHasCert.class);
+
+        JSchTools jSchTools = new JSchTools();
+        try {
+
+            jSchTools.login(new SshLogin(hostname, "root") //
+                    .withPrivateKey(targetProfileHasCert.getSshCertificateFile()) //
+                    .autoApproveHostKey());
+
+            jSchTools.executeInLogger("while(! grep '^" + username + ":' /etc/passwd); do\n" //
+                    + "sleep 1s;\n" //
+                    + "done");
+        } finally {
+            jSchTools.disconnect();
+        }
 
     }
 
