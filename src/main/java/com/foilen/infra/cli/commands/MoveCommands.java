@@ -218,13 +218,13 @@ public class MoveCommands extends AbstractBasics {
         ResponseResourceAppliedChanges result = infraResourceApiService.applyChanges(changes);
         exceptionService.displayResultAndThrow(result, "Install the unix user on the target");
 
-        // First sync
-        System.out.println("Do the first sync to get most of the files in the final state");
-        sshService.syncFiles(sourceHostname, username, targetHostname, username, null);
-
         // Wait user is created on target
         System.out.println("Wait user is created on target");
         sshService.waitUserIsPresent(targetHostname, username);
+
+        // First sync
+        System.out.println("Do the first sync to get most of the files in the final state");
+        sshService.syncFiles(sourceHostname, username, targetHostname, username, null);
 
         // Remove the applications on the source
         System.out.println("Remove the applications on the source");

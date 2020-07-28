@@ -159,11 +159,11 @@ public class SshService extends AbstractBasics {
             String password = unixUserService.getOrCreateUserPassword(profileService.getSourceInfraApiService(), sourceUsername, "source");
             waitCanLogin(sourceHostname, sourceUsername, password, 2 * 60);
 
+            String tmpKeyfile = "/tmp/" + SecureRandomTools.randomHexString(10);
             JSchTools jSchTools = new JSchTools();
             try {
                 // Send target cert
                 logger.info("Send target cert to source");
-                String tmpKeyfile = "/tmp/" + SecureRandomTools.randomHexString(10);
                 jSchTools.login(new SshLogin(sourceHostname, sourceUsername).withPassword(password).autoApproveHostKey());
                 jSchTools.createAndUseSftpChannel(consumer -> {
                     // Create
@@ -178,7 +178,7 @@ public class SshService extends AbstractBasics {
 
                 logger.info("Log on source and push to target using cert");
                 StringBuilder command = new StringBuilder();
-                command.append("/usr/bin/rsync --delay-updates --compress-level=9 --delete -zrtv");
+                command.append("/usr/bin/rsync --inplace --compress-level=9 --delete -zrtv");
                 command.append("e \"ssh -o StrictHostKeyChecking=no -i ").append(tmpKeyfile).append(" -l ").append(targetCertUsername).append("\" ");
                 command.append("/home/").append(sourceUsername).append("/").append(subFolder).append("/ ").append(targetHostname).append(":/home/").append(targetUsername).append("/").append(subFolder)
                         .append("/");
@@ -186,14 +186,19 @@ public class SshService extends AbstractBasics {
                 ExecResult execResult = jSchTools.executeInLogger(command.toString());
                 if (execResult.getExitCode() != 0) {
                     logger.error("There was a problem executing the rsync command. Exit code: {}", execResult.getExitCode());
+                    throw new CliException("There was a problem executing the rsync command");
                 }
 
-                logger.info("Delete cert");
-                jSchTools.createAndUseSftpChannel(consumer -> {
-                    consumer.rm(tmpKeyfile);
-                });
             } finally {
-                jSchTools.disconnect();
+
+                try {
+                    logger.info("Delete cert");
+                    jSchTools.createAndUseSftpChannel(consumer -> {
+                        consumer.rm(tmpKeyfile);
+                    });
+                } finally {
+                    jSchTools.disconnect();
+                }
             }
 
             // Chown target
@@ -210,6 +215,7 @@ public class SshService extends AbstractBasics {
                 ExecResult execResult = jSchTools.executeInLogger(command.toString());
                 if (execResult.getExitCode() != 0) {
                     logger.error("There was a problem executing the chown command. Exit code: {}", execResult.getExitCode());
+                    throw new CliException("There was a problem executing the chown command");
                 }
             } finally {
                 jSchTools.disconnect();
@@ -222,11 +228,11 @@ public class SshService extends AbstractBasics {
             String password = unixUserService.getOrCreateUserPassword(profileService.getTargetInfraApiService(), targetUsername, "target");
             waitCanLogin(targetHostname, targetUsername, password, 2 * 60);
 
+            String tmpKeyfile = "/tmp/" + SecureRandomTools.randomHexString(10);
             JSchTools jSchTools = new JSchTools();
             try {
                 // Send source cert
                 logger.info("Send source cert to target");
-                String tmpKeyfile = "/tmp/" + SecureRandomTools.randomHexString(10);
                 jSchTools.login(new SshLogin(targetHostname, targetUsername).withPassword(password).autoApproveHostKey());
                 jSchTools.createAndUseSftpChannel(consumer -> {
                     // Create
@@ -241,7 +247,7 @@ public class SshService extends AbstractBasics {
 
                 logger.info("Log on target and pull from source using cert");
                 StringBuilder command = new StringBuilder();
-                command.append("/usr/bin/rsync --delay-updates --compress-level=9 --delete -zrtv");
+                command.append("/usr/bin/rsync --inplace --compress-level=9 --delete -zrtv");
                 command.append("e \"ssh -o StrictHostKeyChecking=no -i ").append(tmpKeyfile).append(" -l ").append(sourceCertUsername).append("\" ");
                 command.append(sourceHostname).append(":/home/").append(sourceUsername).append("/").append(subFolder).append("/ /home/").append(targetUsername).append("/").append(subFolder)
                         .append("/");
@@ -249,25 +255,29 @@ public class SshService extends AbstractBasics {
                 ExecResult execResult = jSchTools.executeInLogger(command.toString());
                 if (execResult.getExitCode() != 0) {
                     logger.error("There was a problem executing the rsync command. Exit code: {}", execResult.getExitCode());
+                    throw new CliException("There was a problem executing the rsync command");
                 }
 
-                logger.info("Delete cert");
-                jSchTools.createAndUseSftpChannel(consumer -> {
-                    consumer.rm(tmpKeyfile);
-                });
             } finally {
-                jSchTools.disconnect();
+                try {
+                    logger.info("Delete cert");
+                    jSchTools.createAndUseSftpChannel(consumer -> {
+                        consumer.rm(tmpKeyfile);
+                    });
+                } finally {
+                    jSchTools.disconnect();
+                }
             }
 
         } else {
 
             // Both has certs ; Log on source and push to target using cert
             logger.info("Both has certs ; Log on source and push to target using cert");
+            String tmpKeyfile = "/tmp/" + SecureRandomTools.randomHexString(10);
             JSchTools jSchTools = new JSchTools();
             try {
                 // Send source cert
                 logger.info("Send target cert to source");
-                String tmpKeyfile = "/tmp/" + SecureRandomTools.randomHexString(10);
                 jSchTools.login(new SshLogin(sourceHostname, sourceCertUsername).withPrivateKey(sourceProfileHasCert.getSshCertificateFile()).autoApproveHostKey());
                 jSchTools.createAndUseSftpChannel(consumer -> {
                     // Create
@@ -282,7 +292,7 @@ public class SshService extends AbstractBasics {
 
                 logger.info("Log on source and push to target using cert");
                 StringBuilder command = new StringBuilder();
-                command.append("/usr/bin/rsync --delay-updates --compress-level=9 --delete -zrtv");
+                command.append("/usr/bin/rsync --inplace --compress-level=9 --delete -zrtv");
                 command.append("e \"ssh -o StrictHostKeyChecking=no -i ").append(tmpKeyfile).append(" -l ").append(targetCertUsername).append("\" ");
                 command.append("/home/").append(sourceUsername).append("/").append(subFolder).append("/ ").append(targetHostname).append(":/home/").append(targetUsername).append("/").append(subFolder)
                         .append("/");
@@ -290,14 +300,18 @@ public class SshService extends AbstractBasics {
                 ExecResult execResult = jSchTools.executeInLogger(command.toString());
                 if (execResult.getExitCode() != 0) {
                     logger.error("There was a problem executing the rsync command. Exit code: {}", execResult.getExitCode());
+                    throw new CliException("There was a problem executing the rsync command");
                 }
 
-                logger.info("Delete cert");
-                jSchTools.createAndUseSftpChannel(consumer -> {
-                    consumer.rm(tmpKeyfile);
-                });
             } finally {
-                jSchTools.disconnect();
+                try {
+                    logger.info("Delete cert");
+                    jSchTools.createAndUseSftpChannel(consumer -> {
+                        consumer.rm(tmpKeyfile);
+                    });
+                } finally {
+                    jSchTools.disconnect();
+                }
             }
 
             // Chown target
@@ -314,6 +328,7 @@ public class SshService extends AbstractBasics {
                 ExecResult execResult = jSchTools.executeInLogger(command.toString());
                 if (execResult.getExitCode() != 0) {
                     logger.error("There was a problem executing the chown command. Exit code: {}", execResult.getExitCode());
+                    throw new CliException("There was a problem executing the chown command");
                 }
             } finally {
                 jSchTools.disconnect();
