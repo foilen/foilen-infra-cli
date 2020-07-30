@@ -10,6 +10,7 @@
 package com.foilen.infra.cli.services;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -33,8 +34,11 @@ import com.foilen.infra.plugin.v1.model.resource.AbstractIPResource;
 import com.foilen.infra.plugin.v1.model.resource.LinkTypeConstants;
 import com.foilen.infra.resource.apachephp.ApachePhp;
 import com.foilen.infra.resource.application.Application;
+import com.foilen.infra.resource.composableapplication.ComposableApplication;
 import com.foilen.infra.resource.machine.Machine;
 import com.foilen.infra.resource.mariadb.MariaDBServer;
+import com.foilen.infra.resource.mongodb.MongoDBServer;
+import com.foilen.infra.resource.postgresql.PostgreSqlServer;
 import com.foilen.infra.resource.unixuser.UnixUser;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.JsonTools;
@@ -43,6 +47,14 @@ import com.google.common.base.Joiner;
 
 @Component
 public class MoveService extends AbstractBasics {
+
+    private static final List<String> INSTALLABLE_APPLICATION_TYPES = Arrays.asList( //
+            ApachePhp.RESOURCE_TYPE, //
+            ComposableApplication.RESOURCE_TYPE, //
+            MariaDBServer.RESOURCE_TYPE, //
+            MongoDBServer.RESOURCE_TYPE, //
+            PostgreSqlServer.RESOURCE_TYPE //
+    );
 
     @Autowired
     private ExceptionService exceptionService;
@@ -164,8 +176,7 @@ public class MoveService extends AbstractBasics {
         String cannotProceedMessage = null;
 
         List<String> allApplicationNames = new ArrayList<>();
-        List<ApachePhp> apachePhps = new ArrayList<>();
-        List<MariaDBServer> mariaDBServers = new ArrayList<>();
+        List<ResourceDetails> installableResourceDetails = new ArrayList<>();
         while (applicationIt.hasNext()) {
             ResourceBucket applicationBucket = applicationIt.next();
             Application application = resourceDetailsToResource(applicationBucket.getResourceDetails(), Application.class);
@@ -215,24 +226,14 @@ public class MoveService extends AbstractBasics {
 
             allApplicationNames.add(application.getName());
             ResourceDetails managedBy = applicationManagedBy.get(0);
-            if (StringTools.safeEquals(managedBy.getResourceType(), ApachePhp.RESOURCE_TYPE)) {
+            if (INSTALLABLE_APPLICATION_TYPES.contains(managedBy.getResourceType())) {
                 System.out.println("\t\t\t[OK] Resource Type: " + managedBy.getResourceType());
                 ResponseResourceBucket responseResourceBucket = infraResourceApiService.resourceFindById(((Map<String, String>) managedBy.getResource()).get("internalId"));
                 if (!responseResourceBucket.isSuccess() || responseResourceBucket.getItem() == null) {
                     throw new CliException("Could not get the managed by details: " + JsonTools.compactPrint(responseResourceBucket));
                 }
 
-                apachePhps.add(resourceDetailsToResource(responseResourceBucket.getItem().getResourceDetails(), ApachePhp.class));
-                continue;
-            }
-            if (StringTools.safeEquals(managedBy.getResourceType(), MariaDBServer.RESOURCE_TYPE)) {
-                System.out.println("\t\t\t[OK] Resource Type: " + managedBy.getResourceType());
-                ResponseResourceBucket responseResourceBucket = infraResourceApiService.resourceFindById(((Map<String, String>) managedBy.getResource()).get("internalId"));
-                if (!responseResourceBucket.isSuccess() || responseResourceBucket.getItem() == null) {
-                    throw new CliException("Could not get the managed by details: " + JsonTools.compactPrint(responseResourceBucket));
-                }
-
-                mariaDBServers.add(resourceDetailsToResource(responseResourceBucket.getItem().getResourceDetails(), MariaDBServer.class));
+                installableResourceDetails.add(responseResourceBucket.getItem().getResourceDetails());
                 continue;
             }
 
@@ -265,13 +266,8 @@ public class MoveService extends AbstractBasics {
         // Remove the applications on the source
         System.out.println("Remove the applications on the source");
         changes = new RequestChanges();
-        for (ApachePhp r : apachePhps) {
-            changes.getLinksToDelete()
-                    .add(new LinkDetails(new ResourceDetails(ApachePhp.RESOURCE_TYPE, r), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(sourceHostname))));
-        }
-        for (MariaDBServer r : mariaDBServers) {
-            changes.getLinksToDelete()
-                    .add(new LinkDetails(new ResourceDetails(MariaDBServer.RESOURCE_TYPE, r), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(sourceHostname))));
+        for (ResourceDetails r : installableResourceDetails) {
+            changes.getLinksToDelete().add(new LinkDetails(r, LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(sourceHostname))));
         }
         result = infraResourceApiService.applyChanges(changes);
         exceptionService.displayResultAndThrow(result, "Remove the applications on the source");
@@ -286,13 +282,8 @@ public class MoveService extends AbstractBasics {
         // Install the applications on the target
         System.out.println("Install the applications on the target");
         changes = new RequestChanges();
-        for (ApachePhp r : apachePhps) {
-            changes.getLinksToAdd()
-                    .add(new LinkDetails(new ResourceDetails(ApachePhp.RESOURCE_TYPE, r), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(targetHostname))));
-        }
-        for (MariaDBServer r : mariaDBServers) {
-            changes.getLinksToAdd()
-                    .add(new LinkDetails(new ResourceDetails(MariaDBServer.RESOURCE_TYPE, r), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(targetHostname))));
+        for (ResourceDetails r : installableResourceDetails) {
+            changes.getLinksToAdd().add(new LinkDetails(r, LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(targetHostname))));
         }
         result = infraResourceApiService.applyChanges(changes);
         exceptionService.displayResultAndThrow(result, "Install the applications on the target");
