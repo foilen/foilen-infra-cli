@@ -14,7 +14,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +34,7 @@ import com.foilen.infra.plugin.v1.model.resource.LinkTypeConstants;
 import com.foilen.infra.resource.apachephp.ApachePhp;
 import com.foilen.infra.resource.application.Application;
 import com.foilen.infra.resource.machine.Machine;
+import com.foilen.infra.resource.mariadb.MariaDBServer;
 import com.foilen.infra.resource.unixuser.UnixUser;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.JsonTools;
@@ -161,10 +161,11 @@ public class MoveService extends AbstractBasics {
 
         System.out.println("Unix user " + username + " is used by applications:");
         Iterator<ResourceBucket> applicationIt = applicationsUsingTheUnixUserBucket.iterator();
-        AtomicBoolean cannotProceed = new AtomicBoolean();
+        String cannotProceedMessage = null;
 
         List<String> allApplicationNames = new ArrayList<>();
         List<ApachePhp> apachePhps = new ArrayList<>();
+        List<MariaDBServer> mariaDBServers = new ArrayList<>();
         while (applicationIt.hasNext()) {
             ResourceBucket applicationBucket = applicationIt.next();
             Application application = resourceDetailsToResource(applicationBucket.getResourceDetails(), Application.class);
@@ -202,13 +203,13 @@ public class MoveService extends AbstractBasics {
             System.out.println("\t\tis managed by:");
             if (applicationManagedBy.isEmpty()) {
                 System.out.println("\t\t\t[STOP] The application is not managed by any known resource type");
-                cannotProceed.set(true);
+                cannotProceedMessage = "The application is not managed by any known resource type";
                 continue;
             }
             if (applicationManagedBy.size() > 1) {
                 System.out.println("\t\t\t[STOP] The application is managed by more than 1 resource");
                 applicationManagedBy.forEach(managedBy -> System.out.println("\t\t\t\t" + managedBy.getResource()));
-                cannotProceed.set(true);
+                cannotProceedMessage = "The application is managed by more than 1 resource";
                 continue;
             }
 
@@ -224,15 +225,25 @@ public class MoveService extends AbstractBasics {
                 apachePhps.add(resourceDetailsToResource(responseResourceBucket.getItem().getResourceDetails(), ApachePhp.class));
                 continue;
             }
+            if (StringTools.safeEquals(managedBy.getResourceType(), MariaDBServer.RESOURCE_TYPE)) {
+                System.out.println("\t\t\t[OK] Resource Type: " + managedBy.getResourceType());
+                ResponseResourceBucket responseResourceBucket = infraResourceApiService.resourceFindById(((Map<String, String>) managedBy.getResource()).get("internalId"));
+                if (!responseResourceBucket.isSuccess() || responseResourceBucket.getItem() == null) {
+                    throw new CliException("Could not get the managed by details: " + JsonTools.compactPrint(responseResourceBucket));
+                }
+
+                mariaDBServers.add(resourceDetailsToResource(responseResourceBucket.getItem().getResourceDetails(), MariaDBServer.class));
+                continue;
+            }
 
             // Stop if we don't know how to handle any application
-            cannotProceed.set(true);
+            cannotProceedMessage = "Doesn't know how to handle Resource Type: " + managedBy.getResourceType();
             System.out.println("\t\t\t[NO] Doesn't know how to handle Resource Type: " + managedBy.getResourceType());
 
         }
 
-        if (cannotProceed.get()) {
-            throw new CliException("Cannot proceed");
+        if (cannotProceedMessage != null) {
+            throw new CliException(cannotProceedMessage);
         }
 
         // Install the unix user on the target
@@ -258,6 +269,10 @@ public class MoveService extends AbstractBasics {
             changes.getLinksToDelete()
                     .add(new LinkDetails(new ResourceDetails(ApachePhp.RESOURCE_TYPE, r), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(sourceHostname))));
         }
+        for (MariaDBServer r : mariaDBServers) {
+            changes.getLinksToDelete()
+                    .add(new LinkDetails(new ResourceDetails(MariaDBServer.RESOURCE_TYPE, r), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(sourceHostname))));
+        }
         result = infraResourceApiService.applyChanges(changes);
         exceptionService.displayResultAndThrow(result, "Remove the applications on the source");
 
@@ -274,6 +289,10 @@ public class MoveService extends AbstractBasics {
         for (ApachePhp r : apachePhps) {
             changes.getLinksToAdd()
                     .add(new LinkDetails(new ResourceDetails(ApachePhp.RESOURCE_TYPE, r), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(targetHostname))));
+        }
+        for (MariaDBServer r : mariaDBServers) {
+            changes.getLinksToAdd()
+                    .add(new LinkDetails(new ResourceDetails(MariaDBServer.RESOURCE_TYPE, r), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(targetHostname))));
         }
         result = infraResourceApiService.applyChanges(changes);
         exceptionService.displayResultAndThrow(result, "Install the applications on the target");
