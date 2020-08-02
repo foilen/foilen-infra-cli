@@ -11,6 +11,7 @@ package com.foilen.infra.cli.services;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -35,14 +36,21 @@ import com.foilen.infra.plugin.v1.model.resource.LinkTypeConstants;
 import com.foilen.infra.resource.apachephp.ApachePhp;
 import com.foilen.infra.resource.application.Application;
 import com.foilen.infra.resource.composableapplication.ComposableApplication;
+import com.foilen.infra.resource.domain.Domain;
 import com.foilen.infra.resource.machine.Machine;
 import com.foilen.infra.resource.mariadb.MariaDBServer;
 import com.foilen.infra.resource.mongodb.MongoDBServer;
 import com.foilen.infra.resource.postgresql.PostgreSqlServer;
 import com.foilen.infra.resource.unixuser.UnixUser;
+import com.foilen.infra.resource.urlredirection.UrlRedirection;
+import com.foilen.infra.resource.website.Website;
+import com.foilen.smalltools.listscomparator.ListComparatorHandler;
+import com.foilen.smalltools.listscomparator.ListsComparator;
 import com.foilen.smalltools.tools.AbstractBasics;
+import com.foilen.smalltools.tools.DateTools;
 import com.foilen.smalltools.tools.JsonTools;
 import com.foilen.smalltools.tools.StringTools;
+import com.foilen.smalltools.tools.ThreadTools;
 import com.google.common.base.Joiner;
 
 @Component
@@ -295,6 +303,277 @@ public class MoveService extends AbstractBasics {
                 .add(new LinkDetails(new ResourceDetails(UnixUser.RESOURCE_TYPE, unixUser), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(sourceHostname))));
         result = infraResourceApiService.applyChanges(changes);
         exceptionService.displayResultAndThrow(result, "Remove the unix user from the source");
+
+    }
+
+    @SuppressWarnings("unchecked")
+    public void moveWebsiteCloser(String domainName) {
+
+        // Ensure source and target profiles are the same
+        if (!StringTools.safeEquals(profileService.getSource().getProfileName(), profileService.getTarget().getProfileName())) {
+            throw new CliException("For now, the source and target profiles must be the same");
+        }
+
+        // Get the domain to find the Websites on it
+        InfraApiService infraApiService = profileService.getTargetInfraApiService();
+        InfraResourceApiService infraResourceApiService = infraApiService.getInfraResourceApiService();
+        ResponseResourceBucket domainBucket = infraResourceApiService.resourceFindOneByPk(new ResourceDetails(Domain.RESOURCE_TYPE, new Domain(domainName)));
+        if (!domainBucket.isSuccess() || domainBucket.getItem() == null) {
+            throw new CliException("Could not get the Domain: " + JsonTools.compactPrint(domainBucket));
+        }
+
+        List<ResourceBucket> websites = domainBucket.getItem().getLinksFrom().stream() //
+                .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.MANAGES)) //
+                .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Website.RESOURCE_TYPE)) //
+                .map(it -> resourceDetailsToResource(it.getOtherResource(), Website.class).getInternalId()) //
+                .map(websiteInternalId -> {
+                    ResponseResourceBucket websiteBucket = infraResourceApiService.resourceFindById(websiteInternalId);
+                    if (!websiteBucket.isSuccess() || websiteBucket.getItem() == null) {
+                        throw new CliException("Could not get the Website: " + JsonTools.compactPrint(websiteBucket));
+                    }
+
+                    return websiteBucket.getItem();
+                }) //
+                .collect(Collectors.toList());
+
+        // Separate websites and get the applications
+        List<ResourceBucket> applications = new ArrayList<>();
+        List<ResourceBucket> directWebsites = new ArrayList<>();
+        List<ResourceBucket> indirectWebsites = new ArrayList<>();
+        websites.forEach(website -> {
+
+            // Separate websites
+            if (website.getLinksFrom().stream().anyMatch(l -> StringTools.safeEquals(LinkTypeConstants.MANAGES, l.getLinkType()))) {
+
+                indirectWebsites.add(website);
+
+            } else {
+
+                directWebsites.add(website);
+
+                // Get the list of applications where those websites are going
+                website.getLinksTo().stream() //
+                        .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.POINTS_TO)) //
+                        .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Application.RESOURCE_TYPE))
+                        .map(it -> resourceDetailsToResource(it.getOtherResource(), Application.class).getInternalId()) //
+                        .map(applicationInternalId -> {
+                            ResponseResourceBucket applicationBucket = infraResourceApiService.resourceFindById(applicationInternalId);
+                            if (!applicationBucket.isSuccess() || applicationBucket.getItem() == null) {
+                                throw new CliException("Could not get the Application: " + JsonTools.compactPrint(applicationBucket));
+                            }
+
+                            return applicationBucket.getItem();
+                        }) //
+                        .forEach(it -> applications.add(it));
+            }
+
+        });
+        if (applications.isEmpty()) {
+            throw new CliException("There are no applications linked to these websites");
+        }
+
+        // Get the UrlRedirections
+        List<ResourceBucket> urlRedirections = new ArrayList<>();
+        indirectWebsites.forEach(website -> {
+            Website websiteResource = resourceDetailsToResource(website.getResourceDetails(), Website.class);
+
+            website.getLinksFrom().stream() //
+                    .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.MANAGES)) //
+                    .peek(it -> {
+                        if (!StringTools.safeEquals(it.getOtherResource().getResourceType(), UrlRedirection.RESOURCE_TYPE)) {
+                            throw new CliException(
+                                    "The website " + websiteResource.getName() + " is not managed by a known resource type. It is managed by " + it.getOtherResource().getResourceType());
+                        }
+                    }) //
+                    .map(it -> resourceDetailsToResource(it.getOtherResource(), UrlRedirection.class).getInternalId()) //
+                    .map(urlRedirectionInternalId -> {
+                        ResponseResourceBucket urlRedirectionBucket = infraResourceApiService.resourceFindById(urlRedirectionInternalId);
+                        if (!urlRedirectionBucket.isSuccess() || urlRedirectionBucket.getItem() == null) {
+                            throw new CliException("Could not get the UrlRedirection: " + JsonTools.compactPrint(urlRedirectionBucket));
+                        }
+
+                        return urlRedirectionBucket.getItem();
+                    }) //
+                    .forEach(it -> urlRedirections.add(it));
+
+        });
+
+        // Find all the Machines where the applications are installed (must be the same list from all the links)
+        List<List<String>> applicationInstalledOns = applications.stream() //
+                .map(application -> {
+                    return application.getLinksTo().stream() //
+                            .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.INSTALLED_ON)) //
+                            .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
+                            .map(it -> ((Map<String, String>) it.getOtherResource().getResource()).get("resourceName")) //
+                            .sorted() //
+                            .collect(Collectors.toList());
+                }).collect(Collectors.toList());
+        List<String> applicationInstalledOn = applicationInstalledOns.get(0);
+        if (applicationInstalledOns.stream().anyMatch(it -> !it.equals(applicationInstalledOn))) {
+            throw new CliException("Not all the applications are installed on the same machines");
+        }
+
+        // Check if the websites are already in the final desired state
+        websites.removeIf(websiteBucket -> {
+            List<String> currentlyInstalledOnNoDns = websiteBucket.getLinksTo().stream() //
+                    .filter(it -> StringTools.safeEquals(it.getLinkType(), "INSTALLED_ON_NO_DNS")) //
+                    .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
+                    .map(it -> ((Map<String, String>) it.getOtherResource().getResource()).get("resourceName")) //
+                    .sorted() //
+                    .collect(Collectors.toList());
+            if (!currentlyInstalledOnNoDns.isEmpty()) {
+                return false;
+            }
+
+            List<String> currentlyInstalledOn = websiteBucket.getLinksTo().stream() //
+                    .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.INSTALLED_ON)) //
+                    .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
+                    .map(it -> ((Map<String, String>) it.getOtherResource().getResource()).get("resourceName")) //
+                    .sorted() //
+                    .collect(Collectors.toList());
+
+            if (currentlyInstalledOn.equals(applicationInstalledOn)) {
+                Website website = resourceDetailsToResource(websiteBucket.getResourceDetails(), Website.class);
+                System.out.println("[SKIP] " + website.getName() + " is already in the desired final state");
+                return true;
+            }
+
+            return false;
+        });
+
+        if (websites.isEmpty()) {
+            System.out.println("[SKIP] All the websites are in the final desired state");
+            return;
+        }
+
+        // Update all the Websites with the Machines to remove as INSTALLED_ON_NO_DNS and the application's Machines as INSTALLED_ON
+        {
+            System.out.println("Update all the websites: old machines will be kept without DNS");
+            RequestChanges changes = new RequestChanges();
+            websites.forEach(websiteBucket -> {
+                Website website = resourceDetailsToResource(websiteBucket.getResourceDetails(), Website.class);
+                System.out.println("\t" + website.getName());
+
+                List<String> currentlyInstalledOn = websiteBucket.getLinksTo().stream() //
+                        .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.INSTALLED_ON)) //
+                        .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
+                        .map(it -> ((Map<String, String>) it.getOtherResource().getResource()).get("resourceName")) //
+                        .sorted() //
+                        .collect(Collectors.toList());
+
+                ListsComparator.compareLists(currentlyInstalledOn, applicationInstalledOn, new ListComparatorHandler<String, String>() {
+
+                    @Override
+                    public void both(String machineName, String right) {
+                        System.out.println("\t\t[KEEP] " + machineName);
+                    }
+
+                    @Override
+                    public void leftOnly(String machineName) {
+                        System.out.println("\t\t[DISABLE DNS] " + machineName);
+                        changes.getLinksToDelete()
+                                .add(new LinkDetails(websiteBucket.getResourceDetails(), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
+                        changes.getLinksToAdd().add(new LinkDetails(websiteBucket.getResourceDetails(), "INSTALLED_ON_NO_DNS", new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
+                    }
+
+                    @Override
+                    public void rightOnly(String machineName) {
+                        System.out.println("\t\t[ADD] " + machineName);
+                        changes.getLinksToAdd()
+                                .add(new LinkDetails(websiteBucket.getResourceDetails(), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
+                    }
+                });
+
+            });
+
+            ResponseResourceAppliedChanges resourceAppliedChanges = infraResourceApiService.applyChanges(changes);
+            exceptionService.displayResult(resourceAppliedChanges, "Applying update");
+        }
+
+        // Wait 10 minutes
+        new Thread(() -> {
+
+            try {
+
+                System.out.println("Waiting 10 minutes to complete with DNS update. This will run in the background at " + DateTools.formatFull(DateTools.addDate(Calendar.MINUTE, 10)));
+                ThreadTools.sleep(10 * 60000L);
+
+                RequestChanges changes = new RequestChanges();
+
+                // Remove the NO DNS for direct Websites
+                System.out.println("Remove the NO DNS for Websites");
+                websites.stream() //
+                        .map(website -> {
+                            ResponseResourceBucket websiteBucket = infraResourceApiService.resourceFindOneByPk(website.getResourceDetails());
+                            if (!websiteBucket.isSuccess() || websiteBucket.getItem() == null) {
+                                throw new CliException("Could not get the Website: " + JsonTools.compactPrint(websiteBucket));
+                            }
+
+                            return websiteBucket.getItem();
+                        }) //
+                        .forEach(websiteBucket -> {
+                            Website website = resourceDetailsToResource(websiteBucket.getResourceDetails(), Website.class);
+                            System.out.println("\t" + website.getName());
+
+                            List<String> currentlyInstalledOnNoDns = websiteBucket.getLinksTo().stream() //
+                                    .filter(it -> StringTools.safeEquals(it.getLinkType(), "INSTALLED_ON_NO_DNS")) //
+                                    .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
+                                    .map(it -> ((Map<String, String>) it.getOtherResource().getResource()).get("resourceName")) //
+                                    .sorted() //
+                                    .collect(Collectors.toList());
+
+                            currentlyInstalledOnNoDns.forEach(machineName -> {
+                                System.out.println("\t\t[REMOVE DISABLED DNS] " + machineName);
+                                changes.getLinksToDelete()
+                                        .add(new LinkDetails(websiteBucket.getResourceDetails(), "INSTALLED_ON_NO_DNS", new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
+                            });
+
+                        });
+
+                // Update the Url Redirections with the application's Machines
+                System.out.println("Update the Url Redirections with the application's Machines");
+                urlRedirections.forEach(urlRedirection -> {
+
+                    List<String> currentlyInstalledOn = urlRedirection.getLinksTo().stream() //
+                            .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.INSTALLED_ON)) //
+                            .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
+                            .map(it -> ((Map<String, String>) it.getOtherResource().getResource()).get("resourceName")) //
+                            .sorted() //
+                            .collect(Collectors.toList());
+
+                    ListsComparator.compareLists(currentlyInstalledOn, applicationInstalledOn, new ListComparatorHandler<String, String>() {
+
+                        @Override
+                        public void both(String machineName, String right) {
+                            System.out.println("\t\t[KEEP] " + machineName);
+                        }
+
+                        @Override
+                        public void leftOnly(String machineName) {
+                            System.out.println("\t\t[REMOVE] " + machineName);
+                            changes.getLinksToDelete()
+                                    .add(new LinkDetails(urlRedirection.getResourceDetails(), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
+                        }
+
+                        @Override
+                        public void rightOnly(String machineName) {
+                            System.out.println("\t\t[ADD] " + machineName);
+                            changes.getLinksToAdd()
+                                    .add(new LinkDetails(urlRedirection.getResourceDetails(), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
+                        }
+                    });
+
+                });
+
+                ResponseResourceAppliedChanges resourceAppliedChanges = infraResourceApiService.applyChanges(changes);
+                exceptionService.displayResult(resourceAppliedChanges, "Applying update");
+
+                System.out.println("Update completed");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+        }).start();
 
     }
 

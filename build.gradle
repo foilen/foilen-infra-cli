@@ -35,6 +35,13 @@ repositories {
 
 sourceCompatibility = 1.11
 
+eclipse {
+  classpath {
+    downloadSources = true
+    downloadJavadoc = true
+  }
+}
+
 dependencies {
   compile 'com.foilen:jl-smalltools:0.54.2'
   compile 'dnsjava:dnsjava:3.2.1'

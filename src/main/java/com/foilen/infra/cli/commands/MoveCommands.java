@@ -59,4 +59,11 @@ public class MoveCommands extends AbstractBasics {
         moveService.moveUnixUser(sourceHostname, targetHostname, username);
     }
 
+    @ShellMethod("Move the website where the application is installed")
+    public void moveWebsiteCloser( //
+            String domainName //
+    ) {
+        moveService.moveWebsiteCloser(domainName);
+    }
+
 }

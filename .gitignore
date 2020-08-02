@@ -13,6 +13,9 @@ bin/
 .idea/
 /out/
 
+# Misc
+.attach_pid*
+
 # Projects
 *.log
 _*
