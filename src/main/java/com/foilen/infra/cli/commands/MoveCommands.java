@@ -50,6 +50,15 @@ public class MoveCommands extends AbstractBasics {
         moveService.moveAllUnixUser(sourceHostname, targetHostname, stopOnFailure);
     }
 
+    @ShellMethod("Move all the website where the application is installed for domains on a specific machine")
+    public void moveAllWebsitesCloser( //
+            String machineName, //
+            @ShellOption(defaultValue = ShellOption.NULL) String redirectionOnlyMachine, //
+            @ShellOption(defaultValue = "false") boolean stopOnFailure //
+    ) {
+        moveService.moveAllWebsitesCloser(machineName, redirectionOnlyMachine, stopOnFailure);
+    }
+
     @ShellMethod("Move the unix user to another host by syncing files and moving applications")
     public void moveUnixUser( //
             String username, //
@@ -61,9 +70,10 @@ public class MoveCommands extends AbstractBasics {
 
     @ShellMethod("Move the website where the application is installed")
     public void moveWebsiteCloser( //
-            String domainName //
+            String domainName, //
+            @ShellOption(defaultValue = ShellOption.NULL) String redirectionOnlyMachine //
     ) {
-        moveService.moveWebsiteCloser(domainName);
+        moveService.moveWebsiteCloser(domainName, redirectionOnlyMachine);
     }
 
 }

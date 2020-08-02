@@ -12,6 +12,7 @@ package com.foilen.infra.cli.services;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +53,7 @@ import com.foilen.smalltools.tools.JsonTools;
 import com.foilen.smalltools.tools.StringTools;
 import com.foilen.smalltools.tools.ThreadTools;
 import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 
 @Component
 public class MoveService extends AbstractBasics {
@@ -116,6 +118,69 @@ public class MoveService extends AbstractBasics {
         // Show summary
         System.out.println("\n\n\n---[ Summary ]---");
         usernames.forEach(it -> System.out.println("[" + resultByUsername.get(it) + "] " + it));
+
+    }
+
+    public void moveAllWebsitesCloser(String machineName, String redirectionOnlyMachine, boolean stopOnFailure) {
+
+        // Ensure source and target profiles are the same
+        if (!StringTools.safeEquals(profileService.getSource().getProfileName(), profileService.getTarget().getProfileName())) {
+            throw new CliException("For now, the source and target profiles must be the same");
+        }
+
+        // Get the Machine
+        InfraApiService infraApiService = profileService.getTargetInfraApiService();
+        InfraResourceApiService infraResourceApiService = infraApiService.getInfraResourceApiService();
+        ResponseResourceBucket machineBucket = infraResourceApiService.resourceFindOneByPk(new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName)));
+        if (!machineBucket.isSuccess() || machineBucket.getItem() == null) {
+            throw new CliException("Could not get the Machine: " + JsonTools.compactPrint(machineBucket));
+        }
+
+        // Get the domains of the installed websites
+        List<String> domains = machineBucket.getItem().getLinksFrom().stream() //
+                .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.INSTALLED_ON) || StringTools.safeEquals(it.getLinkType(), "INSTALLED_ON_NO_DNS")) //
+                .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Website.RESOURCE_TYPE)) //
+                .map(it -> resourceDetailsToResource(it.getOtherResource(), Website.class).getInternalId()) //
+                .map(websiteInternalId -> {
+                    ResponseResourceBucket websiteBucket = infraResourceApiService.resourceFindById(websiteInternalId);
+                    if (!websiteBucket.isSuccess() || websiteBucket.getItem() == null) {
+                        throw new CliException("Could not get the Website: " + JsonTools.compactPrint(websiteBucket));
+                    }
+
+                    return resourceDetailsToResource(websiteBucket.getItem().getResourceDetails(), Website.class);
+                }) //
+                .peek(it -> System.out.println("Found Website: " + it.getName())) //
+                .flatMap(website -> website.getDomainNames().stream()) //
+                .sorted() //
+                .distinct() //
+                .collect(Collectors.toList());
+
+        // Prepare
+        Map<String, String> resultByDomain = new TreeMap<>();
+        domains.forEach(it -> resultByDomain.put(it, "PENDING"));
+
+        // Execute
+        for (String domain : domains) {
+            System.out.println("\n\n\n---> Processing domain " + domain);
+
+            try {
+                moveWebsiteCloser(domain, redirectionOnlyMachine);
+                resultByDomain.put(domain, "OK");
+            } catch (Exception e) {
+                System.out.println(e);
+                resultByDomain.put(domain, "ERROR - " + e.getMessage());
+                if (stopOnFailure) {
+                    break;
+                }
+            }
+
+            ThreadTools.sleep(3000);
+        }
+
+        // Show summary
+        System.out.println("\n\n\n---[ Summary ]---");
+        domains.forEach(it -> System.out.println("[" + resultByDomain.get(it) + "] " + it));
+        System.out.println("\nYou still need to wait for all the 10 minutes to be completed");
 
     }
 
@@ -307,7 +372,7 @@ public class MoveService extends AbstractBasics {
     }
 
     @SuppressWarnings("unchecked")
-    public void moveWebsiteCloser(String domainName) {
+    public void moveWebsiteCloser(String domainName, String redirectionOnlyMachine) {
 
         // Ensure source and target profiles are the same
         if (!StringTools.safeEquals(profileService.getSource().getProfileName(), profileService.getTarget().getProfileName())) {
@@ -338,6 +403,7 @@ public class MoveService extends AbstractBasics {
 
         // Separate websites and get the applications
         List<ResourceBucket> applications = new ArrayList<>();
+        List<ResourceBucket> urlRedirections = new ArrayList<>();
         List<ResourceBucket> directWebsites = new ArrayList<>();
         List<ResourceBucket> indirectWebsites = new ArrayList<>();
         websites.forEach(website -> {
@@ -346,6 +412,28 @@ public class MoveService extends AbstractBasics {
             if (website.getLinksFrom().stream().anyMatch(l -> StringTools.safeEquals(LinkTypeConstants.MANAGES, l.getLinkType()))) {
 
                 indirectWebsites.add(website);
+
+                // Get the UrlRedirections
+                Website websiteResource = resourceDetailsToResource(website.getResourceDetails(), Website.class);
+
+                website.getLinksFrom().stream() //
+                        .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.MANAGES)) //
+                        .peek(it -> {
+                            if (!StringTools.safeEquals(it.getOtherResource().getResourceType(), UrlRedirection.RESOURCE_TYPE)) {
+                                throw new CliException(
+                                        "The website " + websiteResource.getName() + " is not managed by a known resource type. It is managed by " + it.getOtherResource().getResourceType());
+                            }
+                        }) //
+                        .map(it -> resourceDetailsToResource(it.getOtherResource(), UrlRedirection.class).getInternalId()) //
+                        .map(urlRedirectionInternalId -> {
+                            ResponseResourceBucket urlRedirectionBucket = infraResourceApiService.resourceFindById(urlRedirectionInternalId);
+                            if (!urlRedirectionBucket.isSuccess() || urlRedirectionBucket.getItem() == null) {
+                                throw new CliException("Could not get the UrlRedirection: " + JsonTools.compactPrint(urlRedirectionBucket));
+                            }
+
+                            return urlRedirectionBucket.getItem();
+                        }) //
+                        .forEach(it -> urlRedirections.add(it));
 
             } else {
 
@@ -368,49 +456,32 @@ public class MoveService extends AbstractBasics {
             }
 
         });
-        if (applications.isEmpty()) {
-            throw new CliException("There are no applications linked to these websites");
+
+        if (applications.isEmpty() && urlRedirections.isEmpty()) {
+            throw new CliException("There are no applications or url redirections linked to these websites");
         }
 
-        // Get the UrlRedirections
-        List<ResourceBucket> urlRedirections = new ArrayList<>();
-        indirectWebsites.forEach(website -> {
-            Website websiteResource = resourceDetailsToResource(website.getResourceDetails(), Website.class);
-
-            website.getLinksFrom().stream() //
-                    .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.MANAGES)) //
-                    .peek(it -> {
-                        if (!StringTools.safeEquals(it.getOtherResource().getResourceType(), UrlRedirection.RESOURCE_TYPE)) {
-                            throw new CliException(
-                                    "The website " + websiteResource.getName() + " is not managed by a known resource type. It is managed by " + it.getOtherResource().getResourceType());
-                        }
-                    }) //
-                    .map(it -> resourceDetailsToResource(it.getOtherResource(), UrlRedirection.class).getInternalId()) //
-                    .map(urlRedirectionInternalId -> {
-                        ResponseResourceBucket urlRedirectionBucket = infraResourceApiService.resourceFindById(urlRedirectionInternalId);
-                        if (!urlRedirectionBucket.isSuccess() || urlRedirectionBucket.getItem() == null) {
-                            throw new CliException("Could not get the UrlRedirection: " + JsonTools.compactPrint(urlRedirectionBucket));
-                        }
-
-                        return urlRedirectionBucket.getItem();
-                    }) //
-                    .forEach(it -> urlRedirections.add(it));
-
-        });
-
         // Find all the Machines where the applications are installed (must be the same list from all the links)
-        List<List<String>> applicationInstalledOns = applications.stream() //
-                .map(application -> {
-                    return application.getLinksTo().stream() //
-                            .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.INSTALLED_ON)) //
-                            .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
-                            .map(it -> ((Map<String, String>) it.getOtherResource().getResource()).get("resourceName")) //
-                            .sorted() //
-                            .collect(Collectors.toList());
-                }).collect(Collectors.toList());
-        List<String> applicationInstalledOn = applicationInstalledOns.get(0);
-        if (applicationInstalledOns.stream().anyMatch(it -> !it.equals(applicationInstalledOn))) {
-            throw new CliException("Not all the applications are installed on the same machines");
+        List<String> applicationInstalledOn;
+        if (applications.isEmpty()) {
+            if (Strings.isNullOrEmpty(redirectionOnlyMachine)) {
+                throw new CliException("This domain only has UrlRedirection. You must provide the machine you want to move to");
+            }
+            applicationInstalledOn = Collections.singletonList(redirectionOnlyMachine);
+        } else {
+            List<List<String>> applicationInstalledOns = applications.stream() //
+                    .map(application -> {
+                        return application.getLinksTo().stream() //
+                                .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.INSTALLED_ON)) //
+                                .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
+                                .map(it -> ((Map<String, String>) it.getOtherResource().getResource()).get("resourceName")) //
+                                .sorted() //
+                                .collect(Collectors.toList());
+                    }).collect(Collectors.toList());
+            applicationInstalledOn = applicationInstalledOns.get(0);
+            if (applicationInstalledOns.stream().anyMatch(it -> !it.equals(applicationInstalledOn))) {
+                throw new CliException("Not all the applications are installed on the same machines");
+            }
         }
 
         // Check if the websites are already in the final desired state
