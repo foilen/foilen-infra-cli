@@ -41,6 +41,14 @@ public class MoveCommands extends AbstractBasics {
         return Availability.available();
     }
 
+    @ShellMethod("Move all the resources gracefully from one machine to another")
+    public void moveAllFromMachine( //
+            String sourceHostname, //
+            String targetHostname //
+    ) {
+        moveService.moveAllFromMachine(sourceHostname, targetHostname);
+    }
+
     @ShellMethod("Move all the unix user to another host by syncing files and moving applications")
     public void moveAllUnixUsers( //
             String sourceHostname, //

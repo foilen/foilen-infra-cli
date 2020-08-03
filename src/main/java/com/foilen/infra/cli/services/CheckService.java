@@ -18,4 +18,6 @@ public interface CheckService {
 
     List<WebsitesAccessible> checkWebsitesAccessible(ProgressionHook progressionHook);
 
+    void listAllResourcesOnMachine(String machineName);
+
 }

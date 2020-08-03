@@ -67,11 +67,36 @@ public class MoveService extends AbstractBasics {
     );
 
     @Autowired
+    private CheckService checkService;
+    @Autowired
     private ExceptionService exceptionService;
     @Autowired
     private ProfileService profileService;
     @Autowired
     private SshService sshService;
+
+    public void moveAllFromMachine(String sourceHostname, String targetHostname) {
+
+        System.out.println("===[ Migrating all unix users ]===");
+        moveAllUnixUser(sourceHostname, targetHostname, false);
+
+        System.out.println("===[ Migrating all websites ]===");
+        List<Thread> threads = moveAllWebsitesCloser(sourceHostname, targetHostname, false);
+
+        System.out.println("===[ Waiting for all websites to be migrated ]===");
+        for (int i = 0; i < threads.size(); ++i) {
+            System.out.println("Waiting on " + (i + 1) + " / " + threads.size());
+            Thread t = threads.get(i);
+            try {
+                t.join();
+            } catch (InterruptedException e) {
+            }
+        }
+
+        System.out.println("\n\n\n===[ List everything still on the machine ]===");
+        checkService.listAllResourcesOnMachine(sourceHostname);
+
+    }
 
     @SuppressWarnings("unchecked")
     public void moveAllUnixUser(String sourceHostname, String targetHostname, boolean stopOnFailure) {
@@ -121,7 +146,7 @@ public class MoveService extends AbstractBasics {
 
     }
 
-    public void moveAllWebsitesCloser(String machineName, String redirectionOnlyMachine, boolean stopOnFailure) {
+    public List<Thread> moveAllWebsitesCloser(String machineName, String redirectionOnlyMachine, boolean stopOnFailure) {
 
         // Ensure source and target profiles are the same
         if (!StringTools.safeEquals(profileService.getSource().getProfileName(), profileService.getTarget().getProfileName())) {
@@ -159,12 +184,16 @@ public class MoveService extends AbstractBasics {
         Map<String, String> resultByDomain = new TreeMap<>();
         domains.forEach(it -> resultByDomain.put(it, "PENDING"));
 
+        List<Thread> threads = new ArrayList<>();
         // Execute
         for (String domain : domains) {
             System.out.println("\n\n\n---> Processing domain " + domain);
 
             try {
-                moveWebsiteCloser(domain, redirectionOnlyMachine);
+                Thread thread = moveWebsiteCloser(domain, redirectionOnlyMachine);
+                if (thread != null) {
+                    threads.add(thread);
+                }
                 resultByDomain.put(domain, "OK");
             } catch (Exception e) {
                 System.out.println(e);
@@ -182,6 +211,7 @@ public class MoveService extends AbstractBasics {
         domains.forEach(it -> System.out.println("[" + resultByDomain.get(it) + "] " + it));
         System.out.println("\nYou still need to wait for all the 10 minutes to be completed");
 
+        return threads;
     }
 
     @SuppressWarnings({ "unchecked" })
@@ -372,7 +402,7 @@ public class MoveService extends AbstractBasics {
     }
 
     @SuppressWarnings("unchecked")
-    public void moveWebsiteCloser(String domainName, String redirectionOnlyMachine) {
+    public Thread moveWebsiteCloser(String domainName, String redirectionOnlyMachine) {
 
         // Ensure source and target profiles are the same
         if (!StringTools.safeEquals(profileService.getSource().getProfileName(), profileService.getTarget().getProfileName())) {
@@ -514,7 +544,7 @@ public class MoveService extends AbstractBasics {
 
         if (websites.isEmpty()) {
             System.out.println("[SKIP] All the websites are in the final desired state");
-            return;
+            return null;
         }
 
         // Update all the Websites with the Machines to remove as INSTALLED_ON_NO_DNS and the application's Machines as INSTALLED_ON
@@ -562,7 +592,7 @@ public class MoveService extends AbstractBasics {
         }
 
         // Wait 10 minutes
-        new Thread(() -> {
+        Thread thread = new Thread(() -> {
 
             try {
 
@@ -644,7 +674,9 @@ public class MoveService extends AbstractBasics {
                 e.printStackTrace();
             }
 
-        }).start();
+        });
+        thread.start();
+        return thread;
 
     }
 
