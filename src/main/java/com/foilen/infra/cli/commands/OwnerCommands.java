@@ -9,6 +9,7 @@
  */
 package com.foilen.infra.cli.commands;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -34,6 +35,7 @@ import com.foilen.infra.api.model.resource.ResourceDetails;
 import com.foilen.infra.api.request.RequestChanges;
 import com.foilen.infra.api.request.RequestResourceSearch;
 import com.foilen.infra.api.request.RequestResourceToUpdate;
+import com.foilen.infra.api.response.ResponseResourceBucket;
 import com.foilen.infra.api.response.ResponseResourceBuckets;
 import com.foilen.infra.api.response.ResponseResourceTypesDetails;
 import com.foilen.infra.api.service.InfraApiService;
@@ -43,12 +45,15 @@ import com.foilen.infra.cli.CliException;
 import com.foilen.infra.cli.model.profile.ApiProfile;
 import com.foilen.infra.cli.services.ExceptionService;
 import com.foilen.infra.cli.services.ProfileService;
+import com.foilen.infra.plugin.v1.model.resource.LinkTypeConstants;
+import com.foilen.infra.resource.application.Application;
 import com.foilen.smalltools.restapi.model.FormResult;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.BufferBatchesTools;
 import com.foilen.smalltools.tools.CollectionsTools;
 import com.foilen.smalltools.tools.StringTools;
 import com.foilen.smalltools.tools.ThreadTools;
+import com.google.common.base.Strings;
 
 @ShellComponent
 public class OwnerCommands extends AbstractBasics {
@@ -57,6 +62,28 @@ public class OwnerCommands extends AbstractBasics {
     private ExceptionService exceptionService;
     @Autowired
     private ProfileService profileService;
+
+    @SuppressWarnings({ "unchecked" })
+    private String getOwner(ResourceDetails resourceDetails) {
+        Map<String, Object> detailedResource = ((Map<String, Object>) resourceDetails.getResource());
+        Map<String, String> meta = (Map<String, String>) detailedResource.get("meta");
+        if (meta == null) {
+            return null;
+        }
+        return meta.get("UI_OWNER");
+    }
+
+    @SuppressWarnings({ "unchecked" })
+    private String getResourceId(ResourceDetails resourceDetails) {
+        Map<String, Object> detailedResource = ((Map<String, Object>) resourceDetails.getResource());
+        return (String) detailedResource.get("internalId");
+    }
+
+    @SuppressWarnings({ "unchecked" })
+    private String getResourceName(ResourceDetails resourceDetails) {
+        Map<String, Object> detailedResource = ((Map<String, Object>) resourceDetails.getResource());
+        return (String) detailedResource.get("resourceName");
+    }
 
     @ShellMethodAvailability
     public Availability isAvailable() {
@@ -100,7 +127,7 @@ public class OwnerCommands extends AbstractBasics {
 
                 String resourceType = type.getResourceType();
                 ResponseResourceBuckets resourceBuckets = infraResourceApiService.resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(resourceType));
-                exceptionService.displayResultAndThrow(allTypes, "Get the matching resources of type " + resourceType);
+                exceptionService.displayResultAndThrow(resourceBuckets, "Get the matching resources of type " + resourceType);
                 resourceBuckets.getItems().stream() //
                         .map(rB -> rB.getResourceDetails()) //
                         .filter(resourceDetails -> {
@@ -191,6 +218,93 @@ public class OwnerCommands extends AbstractBasics {
         );
         result = infraRoleApiService.roleEdit(roleName, roleEditForm);
         exceptionService.displayResultAndThrow(result, "Edit role");
+
+    }
+
+    @SuppressWarnings("unchecked")
+    @ShellMethod("For all applications without owner, if they are managed, use the ownership of the managed")
+    public void ownerFixOrphanManagedApplications() {
+
+        // Get the list of types
+        InfraApiService infraApiService = profileService.getTargetInfraApiService();
+        InfraResourceApiService infraResourceApiService = infraApiService.getInfraResourceApiService();
+
+        // Get all the applications
+        Queue<ResourceDetails> resourceDetailsToUpdate = new ConcurrentLinkedQueue<>();
+        Queue<Future<?>> futures = new ConcurrentLinkedQueue<>();
+
+        System.out.println("Get all applications");
+        ResponseResourceBuckets applicationsBuckets = infraResourceApiService.resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(Application.RESOURCE_TYPE));
+        exceptionService.displayResultAndThrow(applicationsBuckets, "Get the applications");
+        System.out.println("Applications without owners");
+        ExecutorService executorService = Executors.newFixedThreadPool(5, ThreadTools.daemonThreadFactory());
+        applicationsBuckets.getItems().forEach(applicationBucket -> {
+
+            ResourceDetails resourceDetails = applicationBucket.getResourceDetails();
+
+            // Keep only those without owners
+            Map<String, Object> detailedResource = ((Map<String, Object>) resourceDetails.getResource());
+            String currentOwner = getOwner(resourceDetails);
+            if (!Strings.isNullOrEmpty(currentOwner)) {
+                return;
+            }
+
+            String resourceId = getResourceId(resourceDetails);
+            Object resourceName = getResourceName(resourceDetails);
+            System.out.println("\t" + resourceName + " (" + resourceId + ")");
+
+            // Check if the application is managed
+            List<ResourceDetails> applicationManagedBys = applicationBucket.getLinksFrom().stream() //
+                    .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.MANAGES)) //
+                    .map(it -> it.getOtherResource()) //
+                    .collect(Collectors.toList());
+            System.out.println("\t\tManaged by " + applicationManagedBys.size() + " resources");
+            if (applicationManagedBys.isEmpty()) {
+                return;
+            }
+
+            futures.add(executorService.submit(() -> {
+
+                for (ResourceDetails applicationManagedBy : applicationManagedBys) {
+                    String managedByResourceId = getResourceId(applicationManagedBy);
+                    ResponseResourceBucket managedByResponseResourceBucket = infraResourceApiService.resourceFindById(managedByResourceId);
+                    exceptionService.displayResultAndThrow(managedByResponseResourceBucket, "Get the resource " + managedByResourceId);
+
+                    String managedByResourceOwner = getOwner(managedByResponseResourceBucket.getItem().getResourceDetails());
+                    if (!Strings.isNullOrEmpty(managedByResourceOwner)) {
+                        System.out.println(resourceName + " will set owner " + managedByResourceOwner);
+                        Map<String, String> meta = (Map<String, String>) detailedResource.get("meta");
+                        meta.put("UI_OWNER", managedByResourceOwner);
+                        resourceDetailsToUpdate.add(resourceDetails);
+                        System.out.println();
+                        break;
+                    }
+                }
+
+            }));
+
+        });
+
+        // Wait for all tasks to be processed
+        futures.forEach(f -> {
+            try {
+                f.get();
+            } catch (InterruptedException | ExecutionException e) {
+                throw new CliException("", e);
+            }
+        });
+
+        // Update the resources if any
+        if (!resourceDetailsToUpdate.isEmpty()) {
+            System.out.println("Request the update of " + resourceDetailsToUpdate.size() + " resources in batches of 10");
+            BufferBatchesTools<ResourceDetails> batches = new BufferBatchesTools<>(10, resourcesInTheBatch -> {
+                RequestChanges changes = new RequestChanges();
+                resourcesInTheBatch.forEach(rdtu -> changes.getResourcesToUpdate().add(new RequestResourceToUpdate(rdtu, rdtu)));
+                exceptionService.displayResult(infraResourceApiService.applyChanges(changes), "Applying update");
+            });
+            batches.add(resourceDetailsToUpdate.stream().collect(Collectors.toList()));
+            batches.close();
+        }
 
     }
 
