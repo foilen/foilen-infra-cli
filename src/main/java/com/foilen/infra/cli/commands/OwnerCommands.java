@@ -44,6 +44,7 @@ import com.foilen.infra.api.service.InfraRoleApiService;
 import com.foilen.infra.cli.CliException;
 import com.foilen.infra.cli.model.profile.ApiProfile;
 import com.foilen.infra.cli.services.ExceptionService;
+import com.foilen.infra.cli.services.InfraResourceUtils;
 import com.foilen.infra.cli.services.ProfileService;
 import com.foilen.infra.plugin.v1.model.resource.LinkTypeConstants;
 import com.foilen.infra.resource.application.Application;
@@ -62,28 +63,6 @@ public class OwnerCommands extends AbstractBasics {
     private ExceptionService exceptionService;
     @Autowired
     private ProfileService profileService;
-
-    @SuppressWarnings({ "unchecked" })
-    private String getOwner(ResourceDetails resourceDetails) {
-        Map<String, Object> detailedResource = ((Map<String, Object>) resourceDetails.getResource());
-        Map<String, String> meta = (Map<String, String>) detailedResource.get("meta");
-        if (meta == null) {
-            return null;
-        }
-        return meta.get("UI_OWNER");
-    }
-
-    @SuppressWarnings({ "unchecked" })
-    private String getResourceId(ResourceDetails resourceDetails) {
-        Map<String, Object> detailedResource = ((Map<String, Object>) resourceDetails.getResource());
-        return (String) detailedResource.get("internalId");
-    }
-
-    @SuppressWarnings({ "unchecked" })
-    private String getResourceName(ResourceDetails resourceDetails) {
-        Map<String, Object> detailedResource = ((Map<String, Object>) resourceDetails.getResource());
-        return (String) detailedResource.get("resourceName");
-    }
 
     @ShellMethodAvailability
     public Availability isAvailable() {
@@ -244,13 +223,13 @@ public class OwnerCommands extends AbstractBasics {
 
             // Keep only those without owners
             Map<String, Object> detailedResource = ((Map<String, Object>) resourceDetails.getResource());
-            String currentOwner = getOwner(resourceDetails);
+            String currentOwner = InfraResourceUtils.getOwner(resourceDetails);
             if (!Strings.isNullOrEmpty(currentOwner)) {
                 return;
             }
 
-            String resourceId = getResourceId(resourceDetails);
-            Object resourceName = getResourceName(resourceDetails);
+            String resourceId = InfraResourceUtils.getResourceId(resourceDetails);
+            Object resourceName = InfraResourceUtils.getResourceName(resourceDetails);
             System.out.println("\t" + resourceName + " (" + resourceId + ")");
 
             // Check if the application is managed
@@ -266,11 +245,11 @@ public class OwnerCommands extends AbstractBasics {
             futures.add(executorService.submit(() -> {
 
                 for (ResourceDetails applicationManagedBy : applicationManagedBys) {
-                    String managedByResourceId = getResourceId(applicationManagedBy);
+                    String managedByResourceId = InfraResourceUtils.getResourceId(applicationManagedBy);
                     ResponseResourceBucket managedByResponseResourceBucket = infraResourceApiService.resourceFindById(managedByResourceId);
                     exceptionService.displayResultAndThrow(managedByResponseResourceBucket, "Get the resource " + managedByResourceId);
 
-                    String managedByResourceOwner = getOwner(managedByResponseResourceBucket.getItem().getResourceDetails());
+                    String managedByResourceOwner = InfraResourceUtils.getOwner(managedByResponseResourceBucket.getItem().getResourceDetails());
                     if (!Strings.isNullOrEmpty(managedByResourceOwner)) {
                         System.out.println(resourceName + " will set owner " + managedByResourceOwner);
                         Map<String, String> meta = (Map<String, String>) detailedResource.get("meta");

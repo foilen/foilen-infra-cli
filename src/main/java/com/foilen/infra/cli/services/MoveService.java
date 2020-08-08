@@ -32,7 +32,6 @@ import com.foilen.infra.api.response.ResponseResourceBucket;
 import com.foilen.infra.api.service.InfraApiService;
 import com.foilen.infra.api.service.InfraResourceApiService;
 import com.foilen.infra.cli.CliException;
-import com.foilen.infra.plugin.v1.model.resource.AbstractIPResource;
 import com.foilen.infra.plugin.v1.model.resource.LinkTypeConstants;
 import com.foilen.infra.resource.apachephp.ApachePhp;
 import com.foilen.infra.resource.application.Application;
@@ -165,14 +164,14 @@ public class MoveService extends AbstractBasics {
         List<String> domains = machineBucket.getItem().getLinksFrom().stream() //
                 .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.INSTALLED_ON) || StringTools.safeEquals(it.getLinkType(), "INSTALLED_ON_NO_DNS")) //
                 .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Website.RESOURCE_TYPE)) //
-                .map(it -> resourceDetailsToResource(it.getOtherResource(), Website.class).getInternalId()) //
+                .map(it -> InfraResourceUtils.resourceDetailsToResource(it.getOtherResource(), Website.class).getInternalId()) //
                 .map(websiteInternalId -> {
                     ResponseResourceBucket websiteBucket = infraResourceApiService.resourceFindById(websiteInternalId);
                     if (!websiteBucket.isSuccess() || websiteBucket.getItem() == null) {
                         throw new CliException("Could not get the Website: " + JsonTools.compactPrint(websiteBucket));
                     }
 
-                    return resourceDetailsToResource(websiteBucket.getItem().getResourceDetails(), Website.class);
+                    return InfraResourceUtils.resourceDetailsToResource(websiteBucket.getItem().getResourceDetails(), Website.class);
                 }) //
                 .peek(it -> System.out.println("Found Website: " + it.getName())) //
                 .flatMap(website -> website.getDomainNames().stream()) //
@@ -232,11 +231,11 @@ public class MoveService extends AbstractBasics {
             throw new CliException("Could not get the Unix User: " + JsonTools.compactPrint(unixUserBucket));
         }
 
-        UnixUser unixUser = resourceDetailsToResource(unixUserBucket.getItem().getResourceDetails(), UnixUser.class);
+        UnixUser unixUser = InfraResourceUtils.resourceDetailsToResource(unixUserBucket.getItem().getResourceDetails(), UnixUser.class);
         List<String> unixUserAlreadyInstalledOnMachinesNames = unixUserBucket.getItem().getLinksTo().stream() //
                 .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.INSTALLED_ON)) //
                 .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
-                .map(it -> resourceDetailsToResource(it.getOtherResource(), Machine.class).getInternalId()) //
+                .map(it -> InfraResourceUtils.resourceDetailsToResource(it.getOtherResource(), Machine.class).getInternalId()) //
                 .map(machineInternalId -> {
                     ResponseResourceBucket machineBucket = infraResourceApiService.resourceFindById(machineInternalId);
                     if (!machineBucket.isSuccess() || machineBucket.getItem() == null) {
@@ -258,7 +257,7 @@ public class MoveService extends AbstractBasics {
         List<ResourceBucket> applicationsUsingTheUnixUserBucket = unixUserBucket.getItem().getLinksFrom().stream() //
                 .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.RUN_AS)) //
                 .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Application.RESOURCE_TYPE)) //
-                .map(it -> resourceDetailsToResource(it.getOtherResource(), Application.class).getInternalId()) //
+                .map(it -> InfraResourceUtils.resourceDetailsToResource(it.getOtherResource(), Application.class).getInternalId()) //
                 .map(applicationInternalId -> {
                     ResponseResourceBucket applicationBucket = infraResourceApiService.resourceFindById(applicationInternalId);
                     if (!applicationBucket.isSuccess() || applicationBucket.getItem() == null) {
@@ -282,7 +281,7 @@ public class MoveService extends AbstractBasics {
         List<ResourceDetails> installableResourceDetails = new ArrayList<>();
         while (applicationIt.hasNext()) {
             ResourceBucket applicationBucket = applicationIt.next();
-            Application application = resourceDetailsToResource(applicationBucket.getResourceDetails(), Application.class);
+            Application application = InfraResourceUtils.resourceDetailsToResource(applicationBucket.getResourceDetails(), Application.class);
 
             System.out.println("\t" + application.getName());
 
@@ -290,14 +289,14 @@ public class MoveService extends AbstractBasics {
             List<String> installedOnMachinesNames = applicationBucket.getLinksTo().stream() //
                     .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.INSTALLED_ON)) //
                     .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
-                    .map(it -> resourceDetailsToResource(it.getOtherResource(), Machine.class).getInternalId()) //
+                    .map(it -> InfraResourceUtils.resourceDetailsToResource(it.getOtherResource(), Machine.class).getInternalId()) //
                     .map(machineInternalId -> {
                         ResponseResourceBucket machineBucket = infraResourceApiService.resourceFindById(machineInternalId);
                         if (!machineBucket.isSuccess() || machineBucket.getItem() == null) {
                             throw new CliException("Could not get the Machine: " + JsonTools.compactPrint(machineBucket));
                         }
 
-                        return resourceDetailsToResource(machineBucket.getItem().getResourceDetails(), Machine.class).getName();
+                        return InfraResourceUtils.resourceDetailsToResource(machineBucket.getItem().getResourceDetails(), Machine.class).getName();
                     }) //
                     .sorted() //
                     .collect(Collectors.toList());
@@ -420,7 +419,7 @@ public class MoveService extends AbstractBasics {
         List<ResourceBucket> websites = domainBucket.getItem().getLinksFrom().stream() //
                 .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.MANAGES)) //
                 .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Website.RESOURCE_TYPE)) //
-                .map(it -> resourceDetailsToResource(it.getOtherResource(), Website.class).getInternalId()) //
+                .map(it -> InfraResourceUtils.resourceDetailsToResource(it.getOtherResource(), Website.class).getInternalId()) //
                 .map(websiteInternalId -> {
                     ResponseResourceBucket websiteBucket = infraResourceApiService.resourceFindById(websiteInternalId);
                     if (!websiteBucket.isSuccess() || websiteBucket.getItem() == null) {
@@ -444,7 +443,7 @@ public class MoveService extends AbstractBasics {
                 indirectWebsites.add(website);
 
                 // Get the UrlRedirections
-                Website websiteResource = resourceDetailsToResource(website.getResourceDetails(), Website.class);
+                Website websiteResource = InfraResourceUtils.resourceDetailsToResource(website.getResourceDetails(), Website.class);
 
                 website.getLinksFrom().stream() //
                         .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.MANAGES)) //
@@ -454,7 +453,7 @@ public class MoveService extends AbstractBasics {
                                         "The website " + websiteResource.getName() + " is not managed by a known resource type. It is managed by " + it.getOtherResource().getResourceType());
                             }
                         }) //
-                        .map(it -> resourceDetailsToResource(it.getOtherResource(), UrlRedirection.class).getInternalId()) //
+                        .map(it -> InfraResourceUtils.resourceDetailsToResource(it.getOtherResource(), UrlRedirection.class).getInternalId()) //
                         .map(urlRedirectionInternalId -> {
                             ResponseResourceBucket urlRedirectionBucket = infraResourceApiService.resourceFindById(urlRedirectionInternalId);
                             if (!urlRedirectionBucket.isSuccess() || urlRedirectionBucket.getItem() == null) {
@@ -473,7 +472,7 @@ public class MoveService extends AbstractBasics {
                 website.getLinksTo().stream() //
                         .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.POINTS_TO)) //
                         .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Application.RESOURCE_TYPE))
-                        .map(it -> resourceDetailsToResource(it.getOtherResource(), Application.class).getInternalId()) //
+                        .map(it -> InfraResourceUtils.resourceDetailsToResource(it.getOtherResource(), Application.class).getInternalId()) //
                         .map(applicationInternalId -> {
                             ResponseResourceBucket applicationBucket = infraResourceApiService.resourceFindById(applicationInternalId);
                             if (!applicationBucket.isSuccess() || applicationBucket.getItem() == null) {
@@ -534,7 +533,7 @@ public class MoveService extends AbstractBasics {
                     .collect(Collectors.toList());
 
             if (currentlyInstalledOn.equals(applicationInstalledOn)) {
-                Website website = resourceDetailsToResource(websiteBucket.getResourceDetails(), Website.class);
+                Website website = InfraResourceUtils.resourceDetailsToResource(websiteBucket.getResourceDetails(), Website.class);
                 System.out.println("[SKIP] " + website.getName() + " is already in the desired final state");
                 return true;
             }
@@ -552,7 +551,7 @@ public class MoveService extends AbstractBasics {
             System.out.println("Update all the websites: old machines will be kept without DNS");
             RequestChanges changes = new RequestChanges();
             websites.forEach(websiteBucket -> {
-                Website website = resourceDetailsToResource(websiteBucket.getResourceDetails(), Website.class);
+                Website website = InfraResourceUtils.resourceDetailsToResource(websiteBucket.getResourceDetails(), Website.class);
                 System.out.println("\t" + website.getName());
 
                 List<String> currentlyInstalledOn = websiteBucket.getLinksTo().stream() //
@@ -613,7 +612,7 @@ public class MoveService extends AbstractBasics {
                             return websiteBucket.getItem();
                         }) //
                         .forEach(websiteBucket -> {
-                            Website website = resourceDetailsToResource(websiteBucket.getResourceDetails(), Website.class);
+                            Website website = InfraResourceUtils.resourceDetailsToResource(websiteBucket.getResourceDetails(), Website.class);
                             System.out.println("\t" + website.getName());
 
                             List<String> currentlyInstalledOnNoDns = websiteBucket.getLinksTo().stream() //
@@ -678,13 +677,6 @@ public class MoveService extends AbstractBasics {
         thread.start();
         return thread;
 
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T extends AbstractIPResource> T resourceDetailsToResource(ResourceDetails resourceDetails, Class<T> resourceType) {
-        T resource = JsonTools.clone(resourceDetails.getResource(), resourceType);
-        resource.setInternalId(((Map<String, String>) resourceDetails.getResource()).get("internalId"));
-        return resource;
     }
 
 }
