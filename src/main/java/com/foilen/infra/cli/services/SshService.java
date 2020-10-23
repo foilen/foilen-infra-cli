@@ -9,21 +9,34 @@
  */
 package com.foilen.infra.cli.services;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.foilen.infra.cli.CliException;
+import com.foilen.infra.cli.SshException;
 import com.foilen.infra.cli.model.MysqlSyncSide;
 import com.foilen.infra.cli.model.profile.ProfileHasCert;
 import com.foilen.infra.cli.model.profile.ProfileHasHostname;
 import com.foilen.infra.cli.model.profile.ProfileHasUser;
+import com.foilen.smalltools.iterable.FileLinesIterable;
 import com.foilen.smalltools.jsch.JSchTools;
 import com.foilen.smalltools.jsch.SshLogin;
 import com.foilen.smalltools.shell.ExecResult;
 import com.foilen.smalltools.tools.AbstractBasics;
+import com.foilen.smalltools.tools.CloseableTools;
+import com.foilen.smalltools.tools.ExecutorsTools;
 import com.foilen.smalltools.tools.SecureRandomTools;
 import com.foilen.smalltools.tools.ThreadTools;
 import com.google.common.base.Strings;
+import com.google.common.collect.EvictingQueue;
 
 @Component
 public class SshService extends AbstractBasics {
@@ -66,6 +79,89 @@ public class SshService extends AbstractBasics {
         }
         JSchTools jsch = new JSchTools().login(sshLogin);
         return jsch;
+    }
+
+    public void executeCommandInFileTarget(String hostname, String command, String stdOutFile) {
+
+        ProfileHasCert targetProfileHasCert = profileService.getTargetAsOrFail(ProfileHasCert.class);
+
+        JSchTools jSchTools = new JSchTools();
+        AtomicBoolean completed = new AtomicBoolean();
+        EvictingQueue<String> errorLinesQueue = EvictingQueue.create(10);
+        EvictingQueue<Long> progressDeltas = EvictingQueue.create(6); // No progress for 30 seconds (6 checks every 5 seconds)
+        try {
+
+            jSchTools.login(new SshLogin(hostname, "root") //
+                    .withPrivateKey(targetProfileHasCert.getSshCertificateFile()) //
+                    .autoApproveHostKey());
+
+            // Keep lasts errors lines
+            PipedInputStream errInputStream = new PipedInputStream();
+            OutputStream errOutputStream = new PipedOutputStream(errInputStream);
+
+            CountDownLatch errCompleted = new CountDownLatch(1);
+            ExecutorsTools.getCachedDaemonThreadPool().submit(() -> {
+                logger.info("Start piping errors");
+                FileLinesIterable errLinesIterable = new FileLinesIterable();
+                errLinesIterable.openStream(errInputStream);
+
+                while (errLinesIterable.hasNext()) {
+                    String line = errLinesIterable.next();
+                    errorLinesQueue.add(line);
+                }
+
+                errCompleted.countDown();
+                logger.info("Completed piping errors");
+            });
+
+            File file = new File(stdOutFile);
+            FileOutputStream outOutputStream = new FileOutputStream(file);
+
+            // Kill if no progress
+            ExecutorsTools.getCachedDaemonThreadPool().submit(() -> {
+
+                long lastSize = 0;
+
+                while (!completed.get()) {
+                    ThreadTools.sleep(5000);
+                    if (!completed.get()) {
+                        long currentSize = file.length();
+                        long delta = currentSize - lastSize;
+                        lastSize = currentSize;
+
+                        progressDeltas.add(delta);
+
+                        if (delta == 0) {
+                            boolean notAllZeros = progressDeltas.stream().anyMatch(it -> it != 0);
+                            if (!notAllZeros) {
+                                logger.error("No progress for 30 seconds. Killing");
+                                errorLinesQueue.add("No progress for 30 seconds. Killing");
+                                CloseableTools.close(outOutputStream);
+                                CloseableTools.close(errOutputStream);
+                                jSchTools.disconnect();
+                                break;
+                            }
+                        }
+                    }
+
+                }
+            });
+
+            // Execute
+            ExecResult result = jSchTools.executeOutputStreams(command, outOutputStream, errOutputStream);
+            if (result.getExitCode() != 0) {
+                errCompleted.await();
+                throw new SshException("There was a problem executing the command. Exit code: " + result.getExitCode(), errorLinesQueue);
+            }
+        } catch (SshException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SshException("Problem executing the command", e, errorLinesQueue);
+        } finally {
+            jSchTools.disconnect();
+            completed.set(true);
+        }
+
     }
 
     public void executeCommandInLoggerTarget(String hostname, String command) {

@@ -43,12 +43,12 @@ eclipse {
 }
 
 dependencies {
-  compile 'com.foilen:jl-smalltools:0.54.2'
+  compile 'com.foilen:jl-smalltools:1.0.0'
   compile 'dnsjava:dnsjava:3.2.1'
   compile "javax.xml.bind:jaxb-api:2.3.1"
   compile 'com.jcraft:jsch:0.1.55'
-  compile 'com.foilen:foilen-infra-api:0.8.0'
-  compile 'com.foilen:foilen-infra-plugins-core:0.14.4'
+  compile 'com.foilen:foilen-infra-api:0.9.0'
+  compile 'com.foilen:foilen-infra-plugins-core:0.14.6'
   compile 'org.freemarker:freemarker:2.3.23'
   compile 'org.jsoup:jsoup:1.13.1'
   compile 'org.springframework.data:spring-data-jpa'

@@ -17,6 +17,15 @@ import com.foilen.smalltools.tools.JsonTools;
 
 public class InfraResourceUtils {
 
+    private static final String META_UI_OWNER = "UI_OWNER";
+
+    public static String getOwner(AbstractIPResource resource) {
+        if (resource.getMeta() == null) {
+            return null;
+        }
+        return resource.getMeta().get(META_UI_OWNER);
+    }
+
     @SuppressWarnings({ "unchecked" })
     public static String getOwner(ResourceDetails resourceDetails) {
         Map<String, Object> detailedResource = ((Map<String, Object>) resourceDetails.getResource());
@@ -24,7 +33,7 @@ public class InfraResourceUtils {
         if (meta == null) {
             return null;
         }
-        return meta.get("UI_OWNER");
+        return meta.get(META_UI_OWNER);
     }
 
     @SuppressWarnings({ "unchecked" })
