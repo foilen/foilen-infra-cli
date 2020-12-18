@@ -10,6 +10,7 @@
 package com.foilen.infra.cli.commands;
 
 import java.util.Calendar;
+import java.util.Date;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.shell.Availability;
@@ -76,6 +77,47 @@ public class LetsEncryptCommands extends AbstractBasics {
 
                     // Change the end date
                     websiteCertificate.setEnd(DateTools.addDate(Calendar.DAY_OF_YEAR, 1));
+                    ResourceDetails resourceDetails = new ResourceDetails(WebsiteCertificate.RESOURCE_TYPE, websiteCertificate);
+                    changes.getResourcesToUpdate().add(new RequestResourceToUpdate(resourceDetails, resourceDetails));
+
+                    // Update in batch of 10
+                    if (changes.getResourcesToUpdate().size() >= 10) {
+                        ResponseResourceAppliedChanges resourceAppliedChanges = infraResourceApiService.applyChanges(changes);
+                        exceptionService.displayResult(resourceAppliedChanges, "Applying update");
+                        changes.getResourcesToUpdate().clear();
+                    }
+                });
+
+        // If some pending
+        if (!changes.getResourcesToUpdate().isEmpty()) {
+            ResponseResourceAppliedChanges resourceAppliedChanges = infraResourceApiService.applyChanges(changes);
+            exceptionService.displayResult(resourceAppliedChanges, "Applying update");
+        }
+
+    }
+
+    @ShellMethod("Change the end date to be randomly spread out randomly up to 1.5 months before the end date")
+    public void letsEncryptSpreadOut() {
+
+        // Get the list of Let's Encrypt certificates
+        InfraApiService infraApiService = profileService.getTargetInfraApiService();
+        InfraResourceApiService infraResourceApiService = infraApiService.getInfraResourceApiService();
+        RequestResourceSearch requestResourceSearch = new RequestResourceSearch().setResourceType(WebsiteCertificate.RESOURCE_TYPE);
+        ResponseResourceBuckets resourceBuckets = infraResourceApiService.resourceFindAllWithDetails(requestResourceSearch);
+        exceptionService.displayResultAndThrow(resourceBuckets, "Find the WebsiteCertificate resources");
+
+        RequestChanges changes = new RequestChanges();
+        resourceBuckets.getItems().stream() //
+                .map(resourceBucket -> JsonTools.clone(resourceBucket.getResourceDetails().getResource(), WebsiteCertificate.class)) //
+                .filter(websiteCertificate -> LetsEncryptWebsiteCertificateEditor.EDITOR_NAME.equals(websiteCertificate.getResourceEditorName())) //
+                .forEach(websiteCertificate -> {
+
+                    String initialEndDate = DateTools.formatDateOnly(websiteCertificate.getEnd());
+                    Date newEndDate = DateTools.addDate(websiteCertificate.getEnd(), Calendar.DAY_OF_YEAR, (int) (Math.random() * -45));
+                    System.out.println(websiteCertificate.getDomainNames() + " " + initialEndDate + " -> " + DateTools.formatDateOnly(newEndDate));
+
+                    // Change the end date
+                    websiteCertificate.setEnd(newEndDate);
                     ResourceDetails resourceDetails = new ResourceDetails(WebsiteCertificate.RESOURCE_TYPE, websiteCertificate);
                     changes.getResourcesToUpdate().add(new RequestResourceToUpdate(resourceDetails, resourceDetails));
 
