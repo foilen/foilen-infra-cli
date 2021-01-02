@@ -7,13 +7,13 @@ cd $RUN_PATH
 
 # Check params
 if [ $# -ne 1 ]
-	then
-		echo Usage: $0 version;
-    echo E.g: $0 0.1.0
-		echo Version is MAJOR.MINOR.BUGFIX
-		echo Latest versions:
-		git describe --abbrev=0
-		exit 1;
+    then
+        echo Usage: $0 version;
+        echo E.g: $0 0.1.0
+        echo Version is MAJOR.MINOR.BUGFIX
+        echo Latest version:
+        git describe --abbrev=0
+        exit 1;
 fi
 
 # Set environment
