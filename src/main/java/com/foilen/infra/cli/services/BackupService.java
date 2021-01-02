@@ -17,7 +17,6 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import com.foilen.infra.api.model.machine.UnixUser;
 import com.foilen.infra.api.model.resource.ResourceBucket;
 import com.foilen.infra.api.request.RequestResourceSearch;
 import com.foilen.infra.api.response.ResponseResourceBucket;
@@ -29,6 +28,7 @@ import com.foilen.infra.cli.commands.model.BackupResult;
 import com.foilen.infra.cli.commands.model.BackupResults;
 import com.foilen.infra.plugin.v1.model.resource.LinkTypeConstants;
 import com.foilen.infra.resource.machine.Machine;
+import com.foilen.infra.resource.unixuser.UnixUser;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.AssertTools;
 import com.foilen.smalltools.tools.DirectoryTools;

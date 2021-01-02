@@ -1,23 +1,17 @@
 buildscript {
-  ext {
-    springBootVersion = '2.3.1.RELEASE'
-  }
   repositories {
-    mavenCentral()
-  }
-  dependencies {
-    classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+    mavenLocal()
+    jcenter()
   }
 }
-
 plugins {
-  id "com.jfrog.bintray" version "1.8.5"
+  id "com.jfrog.bintray" version "$bintrayVersion"
+  id 'io.spring.dependency-management' version "$springDependencyManagementVersion"
+  id 'org.springframework.boot' version "$springBootVersion"
 }
 
 apply plugin: 'java'
 apply plugin: 'eclipse'
-apply plugin: 'org.springframework.boot'
-apply plugin: 'io.spring.dependency-management'
 apply plugin: 'maven'
 apply plugin: 'maven-publish'
 
@@ -43,17 +37,20 @@ eclipse {
 }
 
 dependencies {
-  compile 'com.foilen:jl-smalltools:1.0.0'
-  compile 'dnsjava:dnsjava:3.2.1'
-  compile "javax.xml.bind:jaxb-api:2.3.1"
-  compile 'com.jcraft:jsch:0.1.55'
-  compile 'com.foilen:foilen-infra-api:0.9.0'
-  compile 'com.foilen:foilen-infra-plugins-core:0.14.6'
-  compile 'org.freemarker:freemarker:2.3.23'
-  compile 'org.jsoup:jsoup:1.13.1'
-  compile 'org.springframework.data:spring-data-jpa'
-  compile('org.springframework.shell:spring-shell-starter:2.0.1.RELEASE')
-  testCompile('org.springframework.boot:spring-boot-starter-test')
+  compile "com.foilen:jl-smalltools:$smalltoolsVersion"
+  compile "dnsjava:dnsjava:$dnsJavaVersion"
+  compile "javax.xml.bind:jaxb-api"
+  compile "com.jcraft:jsch:$jschVersion"
+  compile "com.foilen:foilen-infra-api:$foilenInfraApiVersion"
+  compile "com.foilen:foilen-infra-plugin-core:$foilenInfraPluginVersion"
+  compile "com.foilen:foilen-infra-plugins-core:$foilenInfraPluginsCoreVersion"
+  compile "org.freemarker:freemarker"
+  compile "org.jsoup:jsoup:$jsoupVersion"
+  compile "org.springframework.data:spring-data-jpa"
+  compile "org.springframework.shell:spring-shell-starter:$springShellVersion"
+  
+  testCompile "junit:junit"
+  testCompile "org.springframework.boot:spring-boot-starter-test"
 }
 
 jar {
