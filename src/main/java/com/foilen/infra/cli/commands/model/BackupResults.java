@@ -76,7 +76,7 @@ public class BackupResults extends AbstractBasics {
         sb.append("\n");
         sb.append("\nWas a success: ").append(success);
         sb.append("\nIs completed: ").append(completed);
-        sb.append("\nTotal execution time: ").append(TimeConverterTools.convertToText(totalExecutionTimeMs));
+        sb.append("\nTotal execution time: ").append(TimeConverterTools.convertToTextFromMs(totalExecutionTimeMs));
         sb.append("\nTotal size: ").append(SpaceConverterTools.convertToBiggestBUnit(totalFileSize));
 
         return sb.toString();

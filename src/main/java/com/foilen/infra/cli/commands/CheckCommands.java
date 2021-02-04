@@ -61,7 +61,7 @@ public class CheckCommands extends AbstractBasics {
     private void apply(InfraApiService infraApiService, RequestChanges requestChanges) {
         ResponseResourceAppliedChanges resourceAppliedChanges = infraApiService.getInfraResourceApiService().applyChanges(requestChanges);
         exceptionService.displayResult(resourceAppliedChanges, "Applying refresh");
-        requestChanges.getResourcesToRefreshPk().clear();
+        requestChanges.getResourcesToRefresh().clear();
     }
 
     @ShellMethod("Refresh some resources to ensure the updates were propagated")
@@ -104,8 +104,8 @@ public class CheckCommands extends AbstractBasics {
                         String resourceName = (String) resource.get("resourceName");
                         System.out.println("-> " + resourceName);
 
-                        requestChanges.getResourcesToRefreshPk().add(resourceBucket.getResourceDetails());
-                        if (requestChanges.getResourcesToRefreshPk().size() >= 10) {
+                        requestChanges.getResourcesToRefresh().add(resourceBucket.getResourceDetails());
+                        if (requestChanges.getResourcesToRefresh().size() >= 10) {
                             apply(infraApiService, requestChanges);
                         }
 
@@ -114,7 +114,7 @@ public class CheckCommands extends AbstractBasics {
                     }
                 });
 
-        if (!requestChanges.getResourcesToRefreshPk().isEmpty()) {
+        if (!requestChanges.getResourcesToRefresh().isEmpty()) {
             apply(infraApiService, requestChanges);
         }
     }

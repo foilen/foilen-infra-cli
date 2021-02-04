@@ -111,7 +111,7 @@ public class BackupResult extends AbstractBasics {
         }
 
         sb.append(Joiner.on(" | ").join(owner, machineName, unixUserName, //
-                TimeConverterTools.convertToText(executionTimeMs), SpaceConverterTools.convertToBiggestBUnit(fileSize)));
+                TimeConverterTools.convertToTextFromMs(executionTimeMs), SpaceConverterTools.convertToBiggestBUnit(fileSize)));
         errors.forEach(e -> sb.append("\n\t" + e));
 
         return sb.toString();

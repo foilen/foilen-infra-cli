@@ -132,7 +132,7 @@ public class BackupService extends AbstractBasics {
                     }
 
                     // Add to the results
-                    logger.info("Backuping {} / {} took {} and copied {}", machineName, unixUser.getName(), TimeConverterTools.convertToText(executionTimeMs),
+                    logger.info("Backuping {} / {} took {} and copied {}", machineName, unixUser.getName(), TimeConverterTools.convertToTextFromMs(executionTimeMs),
                             SpaceConverterTools.convertToBiggestBUnit(backupFile.length()));
 
                     // Keep details of errors if not successful
