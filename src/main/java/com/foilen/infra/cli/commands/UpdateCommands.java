@@ -11,6 +11,7 @@ package com.foilen.infra.cli.commands;
 
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -37,9 +38,9 @@ import com.foilen.infra.cli.CliException;
 import com.foilen.infra.cli.model.OnlineFileDetails;
 import com.foilen.infra.cli.model.profile.ApiProfile;
 import com.foilen.infra.cli.model.profile.ProfileHasCert;
-import com.foilen.infra.cli.services.BintrayService;
 import com.foilen.infra.cli.services.DockerHubService;
 import com.foilen.infra.cli.services.ExceptionService;
+import com.foilen.infra.cli.services.MavenCentralService;
 import com.foilen.infra.cli.services.ProfileService;
 import com.foilen.infra.resource.infraconfig.InfraConfig;
 import com.foilen.infra.resource.infraconfig.InfraConfigPlugin;
@@ -60,15 +61,18 @@ public class UpdateCommands extends AbstractBasics {
     private static final String RESOURCE_TYPE_INFRASTRUCTURE_CONFIGURATION = "Infrastructure Configuration";
     private static final String RESOURCE_TYPE_INFRASTRUCTURE_PLUGIN = "Infrastructure Plugin";
 
-    private static final String SUPPORTED_PLUGIN_URI_START = "https://dl.bintray.com/foilen/maven/com/foilen/foilen-infra-plugins-";
-    private static final String SUPPORTED_RESOURCE_URI_START = "https://dl.bintray.com/foilen/maven/com/foilen/foilen-infra-resource-";
+    private static final List<String> SUPPORTED_URIS_START = Arrays.asList( //
+            "https://dl.bintray.com/foilen/maven/com/foilen/foilen-infra-plugins-", //
+            "https://dl.bintray.com/foilen/maven/com/foilen/foilen-infra-resource-", //
+            "https://repo1.maven.org/maven2/com/foilen/foilen-infra-plugins-" //
+    );
 
-    @Autowired
-    private BintrayService bintrayService;
     @Autowired
     private DockerHubService dockerHubService;
     @Autowired
     private ExceptionService exceptionService;
+    @Autowired
+    private MavenCentralService mavenCentralService;
     @Autowired
     private ProfileService profileService;
 
@@ -204,17 +208,17 @@ public class UpdateCommands extends AbstractBasics {
 
         infraConfigPlugins.forEach(it -> {
             String url = it.getUrl();
-            if (url.startsWith(SUPPORTED_PLUGIN_URI_START) || url.startsWith(SUPPORTED_RESOURCE_URI_START)) {
+            if (SUPPORTED_URIS_START.stream().anyMatch(supportedUriStart -> url.startsWith(supportedUriStart))) {
 
                 // Get latest version
                 String pluginName = getPluginNameFromUrl(url);
-                OnlineFileDetails onlineFileDetails = bintrayService.getLatestVersionBintray(pluginName);
+                OnlineFileDetails onlineFileDetails = mavenCentralService.getLatestVersion(pluginName);
 
                 String currentVersion = getVersionFromUrl(url);
                 if (StringTools.safeEquals(currentVersion, onlineFileDetails.getVersion())) {
                     System.out.println("[OK] " + pluginName + " : " + currentVersion);
                 } else {
-                    System.out.println("[UPDATE] " + pluginName + " : " + currentVersion + " -> " + onlineFileDetails.getVersion());
+                    System.out.println("[UPDATE] " + pluginName + " : " + currentVersion + " -> " + onlineFileDetails.getVersion() + " (" + onlineFileDetails.getJarUrl() + ")");
                     InfraConfigPlugin newInfraConfigPlugin = new InfraConfigPlugin();
                     newInfraConfigPlugin.setUrl(onlineFileDetails.getJarUrl());
                     changes.getResourcesToUpdate().add(new RequestResourceToUpdate( //

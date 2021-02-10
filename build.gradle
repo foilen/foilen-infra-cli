@@ -1,33 +1,23 @@
-buildscript {
-  repositories {
-    mavenLocal()
-    jcenter()
-  }
-}
 plugins {
-  id "com.jfrog.bintray" version "$bintrayVersion"
   id 'io.spring.dependency-management' version "$springDependencyManagementVersion"
   id 'org.springframework.boot' version "$springBootVersion"
 }
 
-apply plugin: 'java'
 apply plugin: 'eclipse'
+apply plugin: 'java'
 apply plugin: 'maven'
-apply plugin: 'maven-publish'
+apply plugin: 'signing'
 
 group = 'com.foilen'
 version = System.getenv('VERSION')?:'master-SNAPSHOT'
+ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
 repositories {
   mavenLocal()
-  jcenter()
   mavenCentral()
-  maven {
-    url 'https://dl.bintray.com/foilen/maven/'
-  }
 }
 
-sourceCompatibility = 1.11
+sourceCompatibility = 11
 
 eclipse {
   classpath {
@@ -72,35 +62,54 @@ task javadocJar(type: Jar, dependsOn: javadoc) {
 }
 
 artifacts {
-  archives sourcesJar
-  archives javadocJar
+  archives javadocJar, sourcesJar
 }
 
-bintray {
-  user = System.getenv('BINTRAY_USER')
-  key = System.getenv('BINTRAY_KEY')
-
-  publish = true
-
-  pkg {
-    repo = 'maven'
-    userOrg = 'foilen'
-    name = 'com.foilen:foilen-infra-cli'
-    licenses = ['MIT']
-    vcsUrl = 'https://github.com/foilen/foilen-infra-cli.git'
-  }
-
-  publications = ['MyPublication']
+signing {
+  required { isReleaseVersion && gradle.taskGraph.hasTask(":uploadArchives") }
+  sign configurations.archives
 }
 
-publishing {
-  publications {
-    MyPublication(MavenPublication) {
-      from components.java
-      artifact sourcesJar
-      artifact javadocJar
-      groupId 'com.foilen'
-      artifactId 'foilen-infra-cli'
+uploadArchives {
+  repositories {
+    mavenDeployer {
+      beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+      repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+        authentication(userName: System.getenv('OSSRH_USER'), password: System.getenv('OSSRH_PASS'))
+      }
+
+      snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+        authentication(userName: System.getenv('OSSRH_USER'), password: System.getenv('OSSRH_PASS'))
+      }
+
+      pom.project {
+        name = "foilen-infra-cli"
+        packaging 'jar'
+        artifactId 'foilen-infra-cli'
+        description 'A CLI to help managing the infrastructure'
+        url 'https://github.com/foilen/foilen-infra-cli'
+
+        scm {
+          connection = "scm:git:git@github.com:foilen/foilen-infra-cli.git"
+          url = "https://github.com/foilen/foilen-infra-cli"
+        }
+
+        licenses {
+          license {
+            name = "MIT"
+            url = "https://opensource.org/licenses/MIT"
+          }
+        }
+
+        developers {
+          developer {
+            id 'foilen'
+            name 'Simon Levesque'
+            email 'simon@foilen.com'
+          }
+        }
+      }
     }
   }
 }

@@ -22,18 +22,25 @@ import com.foilen.smalltools.tools.AbstractBasics;
 import com.google.common.collect.ComparisonChain;
 
 @Component
-public class BintrayService extends AbstractBasics {
+public class MavenCentralService extends AbstractBasics {
 
-    public OnlineFileDetails getLatestVersionBintray(String packageName) {
+    public OnlineFileDetails getLatestVersion(String packageName) {
         try {
             // Get the version
-            Document doc = Jsoup.connect("https://dl.bintray.com/foilen/maven/com/foilen/" + packageName).get();
+            Document doc = Jsoup.connect("https://repo1.maven.org/maven2/com/foilen/" + packageName + "/").get();
             Elements links = doc.select("a");
             String version = links.stream() //
                     .map(it -> it.text().replace("/", "")) //
                     .map(it -> it.split("\\.")) //
                     .filter(it -> it.length == 3) //
-                    .map(it -> new int[] { Integer.valueOf(it[0]), Integer.valueOf(it[1]), Integer.valueOf(it[2]) }) //
+                    .map(it -> {
+                        try {
+                            return new int[] { Integer.valueOf(it[0]), Integer.valueOf(it[1]), Integer.valueOf(it[2]) };
+                        } catch (NumberFormatException e) {
+                            return null;
+                        }
+                    }) //
+                    .filter(it -> it != null) //
                     .sorted((a, b) -> ComparisonChain.start() //
                             .compare(b[0], a[0]) //
                             .compare(b[1], a[1]) //
@@ -43,7 +50,7 @@ public class BintrayService extends AbstractBasics {
                     .findFirst().get(); //
 
             // Get the jar
-            String jarUrl = "https://dl.bintray.com/foilen/maven/com/foilen/" + packageName + "/" + version + "/" + packageName + "-" + version + ".jar";
+            String jarUrl = "https://repo1.maven.org/maven2/com/foilen/" + packageName + "/" + version + "/" + packageName + "-" + version + ".jar";
 
             OnlineFileDetails onlineFileDetails = new OnlineFileDetails();
             onlineFileDetails.setJarUrl(jarUrl);
