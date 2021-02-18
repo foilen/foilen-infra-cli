@@ -77,11 +77,11 @@ public class UpdateCommands extends AbstractBasics {
     private ProfileService profileService;
 
     protected String getPluginNameFromUrl(String url) {
-        return url.split("/")[7];
+        return url.split("/")[6];
     }
 
     protected String getVersionFromUrl(String url) {
-        return url.split("/")[8];
+        return url.split("/")[7];
     }
 
     @ShellMethodAvailability

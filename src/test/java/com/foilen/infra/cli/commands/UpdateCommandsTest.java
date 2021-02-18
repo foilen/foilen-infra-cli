@@ -17,15 +17,14 @@ public class UpdateCommandsTest {
     @Test
     public void testGetPluginNameFromUrl() {
         UpdateCommands updateCommands = new UpdateCommands();
-        Assert.assertEquals("foilen-infra-resource-composableapplication", updateCommands
-                .getPluginNameFromUrl("https://dl.bintray.com/foilen/maven/com/foilen/foilen-infra-resource-composableapplication/0.2.1/foilen-infra-resource-composableapplication-0.2.1.jar"));
+        Assert.assertEquals("foilen-infra-plugins-core",
+                updateCommands.getPluginNameFromUrl("https://repo1.maven.org/maven2/com/foilen/foilen-infra-plugins-core/0.19.1/foilen-infra-plugins-core-0.19.1.jar"));
     }
 
     @Test
     public void testGetVersionFromUrl() {
         UpdateCommands updateCommands = new UpdateCommands();
-        Assert.assertEquals("0.2.1", updateCommands
-                .getVersionFromUrl("https://dl.bintray.com/foilen/maven/com/foilen/foilen-infra-resource-composableapplication/0.2.1/foilen-infra-resource-composableapplication-0.2.1.jar"));
+        Assert.assertEquals("0.19.1", updateCommands.getVersionFromUrl("https://repo1.maven.org/maven2/com/foilen/foilen-infra-plugins-core/0.19.1/foilen-infra-plugins-core-0.19.1.jar"));
     }
 
 }
