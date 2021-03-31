@@ -9,6 +9,7 @@
  */
 package com.foilen.infra.cli.services;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import com.foilen.infra.api.model.resource.ResourceDetails;
@@ -53,6 +54,18 @@ public class InfraResourceUtils {
         T resource = JsonTools.clone(resourceDetails.getResource(), resourceType);
         resource.setInternalId(((Map<String, String>) resourceDetails.getResource()).get("internalId"));
         return resource;
+    }
+
+    @SuppressWarnings({ "unchecked" })
+    public static void setOwner(ResourceDetails resourceDetails, String owner) {
+        Map<String, Object> detailedResource = ((Map<String, Object>) resourceDetails.getResource());
+        Map<String, String> meta = (Map<String, String>) detailedResource.get("meta");
+        if (meta == null) {
+            meta = new HashMap<String, String>();
+            detailedResource.put("meta", meta);
+        }
+
+        meta.put(META_UI_OWNER, owner);
     }
 
     private InfraResourceUtils() {

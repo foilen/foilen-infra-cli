@@ -31,6 +31,7 @@ import com.foilen.infra.api.model.permission.PermissionLink;
 import com.foilen.infra.api.model.permission.PermissionResource;
 import com.foilen.infra.api.model.permission.ResourceAction;
 import com.foilen.infra.api.model.permission.RoleEditForm;
+import com.foilen.infra.api.model.resource.ResourceBucketsWithPagination;
 import com.foilen.infra.api.model.resource.ResourceDetails;
 import com.foilen.infra.api.request.RequestChanges;
 import com.foilen.infra.api.request.RequestResourceSearch;
@@ -78,9 +79,79 @@ public class OwnerCommands extends AbstractBasics {
         return Availability.unavailable("the target profile is not of API type");
     }
 
+    @ShellMethod("Change the owner from one to the other")
+    public void ownerChange( //
+            @ShellOption String fromOwner, //
+            @ShellOption String toOwner //
+    ) {
+
+        // Get the list of types
+        InfraApiService infraApiService = profileService.getTargetInfraApiService();
+        InfraResourceApiService infraResourceApiService = infraApiService.getInfraResourceApiService();
+
+        // Find all
+        ExecutorService executorService = Executors.newFixedThreadPool(10, ThreadTools.daemonThreadFactory());
+        Queue<ResourceDetails> resourceDetailsToUpdate = new ConcurrentLinkedQueue<>();
+        Queue<Future<?>> futures = new ConcurrentLinkedQueue<>();
+        int page = 1;
+        while (true) {
+            ResourceBucketsWithPagination result = infraResourceApiService.resourceFindAll(page, fromOwner, false);
+            exceptionService.displayResultAndThrow(result, "Get page " + page);
+            ++page;
+
+            // Check owner
+            result.getItems().forEach(partialResourceBucket -> {
+                ResourceDetails partialResourceDetails = partialResourceBucket.getResourceDetails();
+                String owner = InfraResourceUtils.getOwner(partialResourceDetails);
+                if (StringTools.safeEquals(owner, fromOwner)) {
+
+                    futures.add(executorService.submit(() -> {
+
+                        String resourceId = partialResourceDetails.getResourceId();
+                        ResponseResourceBucket responseResourceBucket = infraResourceApiService.resourceFindById(resourceId);
+                        exceptionService.displayResultAndThrow(responseResourceBucket, "Retrieve all the details of " + resourceId);
+
+                        ResourceDetails resourceDetails = responseResourceBucket.getItem().getResourceDetails();
+                        InfraResourceUtils.setOwner(resourceDetails, toOwner);
+                        resourceDetailsToUpdate.add(resourceDetails);
+
+                    }));
+
+                }
+            });
+
+            // Stop if at the end
+            if (result.getPagination().isLastPage()) {
+                break;
+            }
+        }
+
+        // Wait for all tasks to be processed
+        futures.forEach(f -> {
+            try {
+                f.get();
+            } catch (InterruptedException | ExecutionException e) {
+                throw new CliException("", e);
+            }
+        });
+
+        // Update the resources if any
+        if (!resourceDetailsToUpdate.isEmpty()) {
+            System.out.println("Request the update of " + resourceDetailsToUpdate.size() + " resources in batches of 10");
+            BufferBatchesTools<ResourceDetails> batches = new BufferBatchesTools<>(10, resourcesInTheBatch -> {
+                RequestChanges changes = new RequestChanges();
+                resourcesInTheBatch.forEach(rdtu -> changes.getResourcesToUpdate().add(new RequestResourceToUpdate(rdtu, rdtu)));
+                exceptionService.displayResult(infraResourceApiService.applyChanges(changes), "Applying update");
+            });
+            batches.add(resourceDetailsToUpdate.stream().collect(Collectors.toList()));
+            batches.close();
+        }
+
+    }
+
     @SuppressWarnings("unchecked")
     @ShellMethod("Change the owner on all resources that matches any of the arguments")
-    public void ownerChange( //
+    public void ownerChangeForResources( //
             @ShellOption(defaultValue = ShellOption.NULL) String nameStartsWith, //
             @ShellOption(defaultValue = ShellOption.NULL) String nameContains, //
             @ShellOption(defaultValue = ShellOption.NULL) String nameEndsWith, //
