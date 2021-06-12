@@ -36,6 +36,7 @@ import org.xbill.DNS.Lookup;
 import org.xbill.DNS.MXRecord;
 import org.xbill.DNS.NSRecord;
 import org.xbill.DNS.Record;
+import org.xbill.DNS.SRVRecord;
 import org.xbill.DNS.SimpleResolver;
 import org.xbill.DNS.TXTRecord;
 import org.xbill.DNS.Type;
@@ -54,6 +55,8 @@ import com.foilen.smalltools.listscomparator.ListsComparator;
 import com.foilen.smalltools.reflection.ReflectionTools;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.JsonTools;
+import com.foilen.smalltools.tools.StringTools;
+import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 
 @ShellComponent
@@ -71,6 +74,10 @@ public class DnsCommands extends AbstractBasics {
         }
     }
 
+    private String asString(RawDnsEntry entry) {
+        return Joiner.on(" | ").skipNulls().join(entry.getName(), entry.getType(), entry.getDetails(), entry.getPriority(), entry.getWeight(), entry.getPort());
+    }
+
     @ShellMethod("Look the current DNS entries for a hostname with common sub-domains and compare with what is in the target profile (ignoring ttl and MX priority")
     public void dnsCompareWithTarget( //
             String hostname, //
@@ -79,8 +86,9 @@ public class DnsCommands extends AbstractBasics {
     ) {
 
         // get source
-        List<DnsEntry> sourceDnsEntries = listRawDnsEntries(hostname, moreSubDomains, usingDnsServer).stream() //
-                .map(it -> JsonTools.clone(it, DnsEntry.class)) //
+        List<String> sourceDnsEntries = listRawDnsEntries(hostname, moreSubDomains, usingDnsServer).stream() //
+                .filter(rawDnsEntry -> !StringTools.safeEquals(rawDnsEntry.getType(), "NS")) //
+                .map(rawDnsEntry -> asString(rawDnsEntry)) //
                 .sorted().distinct() //
                 .collect(Collectors.toList());
 
@@ -92,31 +100,48 @@ public class DnsCommands extends AbstractBasics {
             throw new CliException(resourceBuckets.getError());
         }
 
-        List<DnsEntry> targetDnsEntries = resourceBuckets.getItems().stream() //
+        List<String> targetDnsEntries = resourceBuckets.getItems().stream() //
                 .map(resourceBucket -> JsonTools.clone(resourceBucket.getResourceDetails().getResource(), DnsEntry.class)) //
                 .filter(dnsEntry -> dnsEntry.getName().endsWith(hostname)) //
+                .map(dnsEntry -> {
+                    RawDnsEntry rawDnsEntry = new RawDnsEntry() //
+                            .setName(dnsEntry.getName()) //
+                            .setType(dnsEntry.getType().name()) //
+                            .setDetails(dnsEntry.getDetails()) //
+                            .setTtl(300) //
+                    ;
+                    switch (dnsEntry.getType()) {
+                    case MX:
+                        rawDnsEntry.setPriority(dnsEntry.getPriority());
+                        break;
+                    case SRV:
+                        rawDnsEntry.setPriority(dnsEntry.getPriority());
+                        rawDnsEntry.setWeight(dnsEntry.getWeight());
+                        rawDnsEntry.setPort(dnsEntry.getPort());
+                        break;
+                    default:
+                    }
+                    return rawDnsEntry;
+                }) //
+                .map(rawDnsEntry -> asString(rawDnsEntry)) //
                 .sorted().distinct() //
                 .collect(Collectors.toList());
 
         // Compare
-        ListsComparator.compareLists(sourceDnsEntries, targetDnsEntries, new ListComparatorHandler<DnsEntry, DnsEntry>() {
+        ListsComparator.compareLists(sourceDnsEntries, targetDnsEntries, new ListComparatorHandler<String, String>() {
 
-            private String asString(DnsEntry entry) {
-                return entry.getName() + " " + entry.getType() + " -> " + entry.getDetails();
+            @Override
+            public void both(String left, String right) {
             }
 
             @Override
-            public void both(DnsEntry left, DnsEntry right) {
+            public void leftOnly(String left) {
+                System.out.println("ADD\t" + left);
             }
 
             @Override
-            public void leftOnly(DnsEntry left) {
-                System.out.println("ADD\t" + asString(left));
-            }
-
-            @Override
-            public void rightOnly(DnsEntry right) {
-                System.out.println("REMOVE\t" + asString(right));
+            public void rightOnly(String right) {
+                System.out.println("REMOVE\t" + right);
             }
         });
 
@@ -157,10 +182,13 @@ public class DnsCommands extends AbstractBasics {
         addSubDomains(hostnames, hostname, //
                 "ns1", "ns2", "ns3", "ns4", // DNS
                 "beta", "dev", "pre", "www", "w3", // Web
-                "autodiscover", "email", "imap", "mail", "mx", "pop", "pop3", "smtp", // Emails
+                "_imap._tcp", "_imaps._tcp", "_submission._tcp", "_pop._tcp", "_pop3._tcp", "autodiscover", "email", "imap", "mail", "mx", "pop", "pop3", "smtp", // Emails
                 "default._domainkey", "_amazonses", "mandrill._domainkey", "s1._domainkey", "s2._domainkey", // Mail keys
+                "_caldavs._tcp", // CalDav
                 "cpanel", "whm", // CPanel
-                "ftp", "login", "gitlab", "phpmyadmin", "sso", "shop", "unifi", "unms", "webdisk", "webmail" // Common apps
+                "_sip._tls", "_sipfederationtls._tcp", "sip", // SIP
+                "_jabber._tcp", "_ldap._tcp", "_xmpp-client._tcp", "enterpriseenrollment", "enterpriseregistration", "ftp", "login", "lyncdiscover", "lyncdiscoverinternal", "gitlab", "phpmyadmin",
+                "sso", "shop", "unifi", "unms", "webdisk", "webmail" // Common apps
         );
         if (moreSubDomains != null) {
             addSubDomains(hostnames, hostname, moreSubDomains.split(","));
@@ -245,6 +273,17 @@ public class DnsCommands extends AbstractBasics {
                             });
                             break;
                         case Type.SOA:
+                            break;
+                        case Type.SRV:
+                            SRVRecord srvRecord = (SRVRecord) record;
+                            dnsEntry.setDetails(srvRecord.getTarget().toString(true));
+                            dnsEntry.setPriority(srvRecord.getPriority());
+                            dnsEntry.setWeight(srvRecord.getWeight());
+                            dnsEntry.setPort(srvRecord.getPort());
+                            dnsEntries.add(dnsEntry);
+                            if (dnsEntry.getDetails().endsWith(hostname)) {
+                                hostnames.add(dnsEntry.getDetails());
+                            }
                             break;
                         default:
                             logger.error("Unknown type {} for {}", typeName, nextHostname);

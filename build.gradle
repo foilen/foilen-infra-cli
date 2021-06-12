@@ -34,10 +34,13 @@ dependencies {
   compile "com.foilen:foilen-infra-api:$foilenInfraApiVersion"
   compile "com.foilen:foilen-infra-plugin-core:$foilenInfraPluginVersion"
   compile "com.foilen:foilen-infra-plugins-core:$foilenInfraPluginsCoreVersion"
+  compile "org.apache.httpcomponents:httpclient"
   compile "org.freemarker:freemarker"
   compile "org.jsoup:jsoup:$jsoupVersion"
+  compile "org.springframework.boot:spring-boot-starter-web"
   compile "org.springframework.data:spring-data-jpa"
   compile "org.springframework.shell:spring-shell-starter:$springShellVersion"
+  
   
   testCompile "junit:junit"
   testCompile "org.springframework.boot:spring-boot-starter-test"
