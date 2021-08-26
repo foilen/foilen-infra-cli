@@ -19,6 +19,7 @@ import org.springframework.shell.Availability;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 import org.springframework.shell.standard.ShellMethodAvailability;
+import org.springframework.shell.standard.ShellOption;
 
 import com.foilen.infra.api.request.RequestChanges;
 import com.foilen.infra.api.request.RequestResourceSearch;
@@ -162,9 +163,11 @@ public class CheckCommands extends AbstractBasics {
     }
 
     @ShellMethod("Retrieve all the websites and try to contact them")
-    public void checkWebsitesAccessible() {
+    public void checkWebsitesAccessible( //
+            @ShellOption(defaultValue = ShellOption.NULL) String owner //
+    ) {
 
-        List<WebsitesAccessible> websitesAccessibles = checkService.checkWebsitesAccessible(new ProgressionHook() {
+        List<WebsitesAccessible> websitesAccessibles = checkService.checkWebsitesAccessible(owner, new ProgressionHook() {
             @Override
             public void begin() {
                 System.out.print(".");

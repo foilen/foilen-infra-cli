@@ -17,10 +17,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import com.foilen.infra.api.model.resource.ResourceBucket;
 import com.foilen.infra.api.model.resource.ResourceDetails;
 import com.foilen.infra.api.request.RequestResourceSearch;
 import com.foilen.infra.api.response.ResponseResourceBucket;
@@ -36,8 +38,10 @@ import com.foilen.infra.resource.machine.Machine;
 import com.foilen.infra.resource.website.Website;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.JsonTools;
+import com.foilen.smalltools.tools.StringTools;
 import com.foilen.smalltools.tools.ThreadTools;
 import com.foilen.smalltools.tuple.Tuple3;
+import com.google.common.base.Strings;
 
 @Component
 public class CheckServiceImpl extends AbstractBasics implements CheckService {
@@ -51,15 +55,25 @@ public class CheckServiceImpl extends AbstractBasics implements CheckService {
 
     @Override
     public List<WebsitesAccessible> checkWebsitesAccessible(ProgressionHook progressionHook) {
+        return checkWebsitesAccessible(null, progressionHook);
+    }
+
+    @Override
+    public List<WebsitesAccessible> checkWebsitesAccessible(String owner, ProgressionHook progressionHook) {
 
         // Get the list
         displayService.display("Retrieve the websites list");
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
-        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(new RequestResourceSearch().setResourceType(Website.RESOURCE_TYPE));
+        RequestResourceSearch requestResourceSearch = new RequestResourceSearch().setResourceType(Website.RESOURCE_TYPE);
+        ResponseResourceBuckets resourceBuckets = infraApiService.getInfraResourceApiService().resourceFindAllWithDetails(requestResourceSearch);
         exceptionService.displayResultAndThrow(resourceBuckets, "Retrieve the websites list");
 
         // Get the list
-        List<WebsitesAccessible> websitesAccessibles = resourceBuckets.getItems().stream() //
+        Stream<ResourceBucket> resourceStream = resourceBuckets.getItems().stream();
+        if (!Strings.isNullOrEmpty(owner)) {
+            resourceStream = resourceStream.filter(it -> StringTools.safeEquals(InfraResourceUtils.getOwner(it.getResourceDetails()), owner));
+        }
+        List<WebsitesAccessible> websitesAccessibles = resourceStream //
                 .filter(i -> i.getLinksTo().stream().anyMatch(l -> l.getLinkType().equals(LinkTypeConstants.INSTALLED_ON))) //
                 .map(resourceBucket -> JsonTools.clone(resourceBucket.getResourceDetails().getResource(), Website.class)) //
                 .flatMap(website -> website.getDomainNames().stream().map(domain -> //
