@@ -5,8 +5,8 @@ plugins {
 }
 
 apply plugin: 'eclipse'
-apply plugin: 'java'
-apply plugin: 'maven'
+apply plugin: 'java-library'
+apply plugin: 'maven-publish'
 apply plugin: 'signing'
 
 group = 'com.foilen'
@@ -28,23 +28,22 @@ eclipse {
 }
 
 dependencies {
-  compile "com.foilen:jl-smalltools:$smalltoolsVersion"
-  compile "dnsjava:dnsjava:$dnsJavaVersion"
-  compile "javax.xml.bind:jaxb-api"
-  compile "com.jcraft:jsch:$jschVersion"
-  compile "com.foilen:foilen-infra-api:$foilenInfraApiVersion"
-  compile "com.foilen:foilen-infra-plugin-core:$foilenInfraPluginVersion"
-  compile "com.foilen:foilen-infra-plugins-core:$foilenInfraPluginsCoreVersion"
-  compile "org.apache.httpcomponents:httpclient"
-  compile "org.freemarker:freemarker"
-  compile "org.jsoup:jsoup:$jsoupVersion"
-  compile "org.springframework.data:spring-data-jpa"
-  compile "org.springframework.shell:spring-shell-starter:$springShellVersion"
-  compile "org.springframework:spring-web"
+  api "com.foilen:jl-smalltools:$smalltoolsVersion"
+  api "dnsjava:dnsjava:$dnsJavaVersion"
+  api "javax.xml.bind:jaxb-api"
+  api "com.jcraft:jsch:$jschVersion"
+  api "com.foilen:foilen-infra-api:$foilenInfraApiVersion"
+  api "com.foilen:foilen-infra-plugin-core:$foilenInfraPluginVersion"
+  api "com.foilen:foilen-infra-plugins-core:$foilenInfraPluginsCoreVersion"
+  api "org.apache.httpcomponents:httpclient"
+  api "org.freemarker:freemarker"
+  api "org.jsoup:jsoup:$jsoupVersion"
+  api "org.springframework.data:spring-data-jpa"
+  api "org.springframework.shell:spring-shell-starter:$springShellVersion"
+  api "org.springframework:spring-web"
   
-  
-  testCompile "junit:junit"
-  testCompile "org.springframework.boot:spring-boot-starter-test"
+  testImplementation "junit:junit"
+  testImplementation "org.springframework.boot:spring-boot-starter-test"
 }
 
 jar {
@@ -55,45 +54,30 @@ bootJar {
 	classifier = 'boot'
 }
 
-task sourcesJar(type: Jar, dependsOn: classes) {
-  classifier = 'sources'
-  from sourceSets.main.allSource
+java {
+  withJavadocJar()
+  withSourcesJar()
 }
 
-task javadocJar(type: Jar, dependsOn: javadoc) {
-  classifier = 'javadoc'
-  from javadoc.destinationDir
-}
-
-artifacts {
-  archives javadocJar, sourcesJar
-}
-
-signing {
-  required { isReleaseVersion && gradle.taskGraph.hasTask(":uploadArchives") }
-  sign configurations.archives
-}
-
-uploadArchives {
+publishing {
   repositories {
-    mavenDeployer {
-      beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-
-      repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
-        authentication(userName: System.getenv('OSSRH_USER'), password: System.getenv('OSSRH_PASS'))
+    maven {
+      url = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+      credentials {
+        username = System.getenv('OSSRH_USER')
+        password = System.getenv('OSSRH_PASS')
       }
+    }
+  }
 
-      snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
-        authentication(userName: System.getenv('OSSRH_USER'), password: System.getenv('OSSRH_PASS'))
-      }
-
-      pom.project {
+  publications {
+    mavenJava(MavenPublication) {
+      pom {
         name = "foilen-infra-cli"
-        packaging 'jar'
-        artifactId 'foilen-infra-cli'
-        description 'A CLI to help managing the infrastructure'
-        url 'https://github.com/foilen/foilen-infra-cli'
-
+        description = 'A CLI to help managing the infrastructure'
+        url = 'https://github.com/foilen/foilen-infra-cli'
+        from components.java
+        
         scm {
           connection = "scm:git:git@github.com:foilen/foilen-infra-cli.git"
           url = "https://github.com/foilen/foilen-infra-cli"
@@ -108,12 +92,19 @@ uploadArchives {
 
         developers {
           developer {
-            id 'foilen'
-            name 'Simon Levesque'
-            email 'simon@foilen.com'
+            id = 'foilen'
+            name = 'Simon Levesque'
+            email = 'simon@foilen.com'
           }
         }
       }
     }
   }
+}
+
+signing {
+  sign publishing.publications.mavenJava
+}
+tasks.withType(Sign) {
+  onlyIf { isReleaseVersion }
 }
