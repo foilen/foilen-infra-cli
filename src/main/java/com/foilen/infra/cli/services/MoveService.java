@@ -283,7 +283,7 @@ public class MoveService extends AbstractBasics {
             ResourceBucket applicationBucket = applicationIt.next();
             Application application = InfraResourceUtils.resourceDetailsToResource(applicationBucket.getResourceDetails(), Application.class);
 
-            System.out.println("\t" + application.getName());
+            System.out.println("\t" + application.getName() + " (owner: " + InfraResourceUtils.getOwner(application) + ")");
 
             // Filter out applications not installed on the source machine
             List<String> installedOnMachinesNames = applicationBucket.getLinksTo().stream() //
@@ -381,14 +381,20 @@ public class MoveService extends AbstractBasics {
         System.out.println("Do the last sync while the application is down");
         sshService.syncFiles(sourceHostname, username, targetHostname, username, null);
 
-        // Install the applications on the target
+        // Install the applications on the target (per owner)
         System.out.println("Install the applications on the target");
-        changes = new RequestChanges();
-        for (ResourceDetails r : installableResourceDetails) {
-            changes.getLinksToAdd().add(new LinkDetails(r, LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(targetHostname))));
-        }
-        result = infraResourceApiService.applyChanges(changes);
-        exceptionService.displayResultAndThrow(result, "Install the applications on the target");
+        Map<String, List<ResourceDetails>> installableResourceDetailsByOwner = installableResourceDetails.stream() //
+                .collect(Collectors.groupingBy(it -> InfraResourceUtils.getOwner(it)));
+        installableResourceDetailsByOwner.forEach((owner, resourcesDetails) -> {
+            System.out.println("Install the applications on the target of owner " + owner);
+            RequestChanges requestChanges = new RequestChanges();
+            requestChanges.setDefaultOwner(owner);
+            for (ResourceDetails r : installableResourceDetails) {
+                requestChanges.getLinksToAdd().add(new LinkDetails(r, LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(targetHostname))));
+            }
+            ResponseResourceAppliedChanges responseResourceAppliedChanges = infraResourceApiService.applyChanges(requestChanges);
+            exceptionService.displayResultAndThrow(responseResourceAppliedChanges, "Install the applications on the target of owner " + owner);
+        });
 
         // Remove the unix user from the source
         System.out.println("Remove the unix user from the source");
@@ -416,7 +422,7 @@ public class MoveService extends AbstractBasics {
             throw new CliException("Could not get the Domain: " + JsonTools.compactPrint(domainBucket));
         }
 
-        List<ResourceBucket> websites = domainBucket.getItem().getLinksFrom().stream() //
+        List<ResourceBucket> websitesForDomain = domainBucket.getItem().getLinksFrom().stream() //
                 .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.MANAGES)) //
                 .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Website.RESOURCE_TYPE)) //
                 .map(it -> InfraResourceUtils.resourceDetailsToResource(it.getOtherResource(), Website.class).getInternalId()) //
@@ -435,7 +441,7 @@ public class MoveService extends AbstractBasics {
         List<ResourceBucket> urlRedirections = new ArrayList<>();
         List<ResourceBucket> directWebsites = new ArrayList<>();
         List<ResourceBucket> indirectWebsites = new ArrayList<>();
-        websites.forEach(website -> {
+        websitesForDomain.forEach(website -> {
 
             // Separate websites
             if (website.getLinksFrom().stream().anyMatch(l -> StringTools.safeEquals(LinkTypeConstants.MANAGES, l.getLinkType()))) {
@@ -514,7 +520,7 @@ public class MoveService extends AbstractBasics {
         }
 
         // Check if the websites are already in the final desired state
-        websites.removeIf(websiteBucket -> {
+        websitesForDomain.removeIf(websiteBucket -> {
             List<String> currentlyInstalledOnNoDns = websiteBucket.getLinksTo().stream() //
                     .filter(it -> StringTools.safeEquals(it.getLinkType(), "INSTALLED_ON_NO_DNS")) //
                     .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
@@ -541,100 +547,27 @@ public class MoveService extends AbstractBasics {
             return false;
         });
 
-        if (websites.isEmpty()) {
+        if (websitesForDomain.isEmpty()) {
             System.out.println("[SKIP] All the websites are in the final desired state");
             return null;
         }
 
         // Update all the Websites with the Machines to remove as INSTALLED_ON_NO_DNS and the application's Machines as INSTALLED_ON
+        Map<String, List<ResourceBucket>> websitesByOwner = websitesForDomain.stream() //
+                .collect(Collectors.groupingBy(it -> InfraResourceUtils.getOwner(it.getResourceDetails())));
         {
             System.out.println("Update all the websites: old machines will be kept without DNS");
-            RequestChanges changes = new RequestChanges();
-            websites.forEach(websiteBucket -> {
-                Website website = InfraResourceUtils.resourceDetailsToResource(websiteBucket.getResourceDetails(), Website.class);
-                System.out.println("\t" + website.getName());
 
-                List<String> currentlyInstalledOn = websiteBucket.getLinksTo().stream() //
-                        .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.INSTALLED_ON)) //
-                        .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
-                        .map(it -> ((Map<String, String>) it.getOtherResource().getResource()).get("resourceName")) //
-                        .sorted() //
-                        .collect(Collectors.toList());
+            websitesByOwner.forEach((owner, websites) -> {
 
-                ListsComparator.compareLists(currentlyInstalledOn, applicationInstalledOn, new ListComparatorHandler<String, String>() {
-
-                    @Override
-                    public void both(String machineName, String right) {
-                        System.out.println("\t\t[KEEP] " + machineName);
-                    }
-
-                    @Override
-                    public void leftOnly(String machineName) {
-                        System.out.println("\t\t[DISABLE DNS] " + machineName);
-                        changes.getLinksToDelete()
-                                .add(new LinkDetails(websiteBucket.getResourceDetails(), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
-                        changes.getLinksToAdd().add(new LinkDetails(websiteBucket.getResourceDetails(), "INSTALLED_ON_NO_DNS", new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
-                    }
-
-                    @Override
-                    public void rightOnly(String machineName) {
-                        System.out.println("\t\t[ADD] " + machineName);
-                        changes.getLinksToAdd()
-                                .add(new LinkDetails(websiteBucket.getResourceDetails(), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
-                    }
-                });
-
-            });
-
-            ResponseResourceAppliedChanges resourceAppliedChanges = infraResourceApiService.applyChanges(changes);
-            exceptionService.displayResult(resourceAppliedChanges, "Applying update");
-        }
-
-        // Wait 10 minutes
-        Thread thread = new Thread(() -> {
-
-            try {
-
-                System.out.println("Waiting 10 minutes to complete with DNS update. This will run in the background at " + DateTools.formatFull(DateTools.addDate(Calendar.MINUTE, 10)));
-                ThreadTools.sleep(10 * 60000L);
-
+                System.out.println("Update all the websites: old machines will be kept without DNS for owner " + owner);
                 RequestChanges changes = new RequestChanges();
+                changes.setDefaultOwner(owner);
+                websites.forEach(websiteBucket -> {
+                    Website website = InfraResourceUtils.resourceDetailsToResource(websiteBucket.getResourceDetails(), Website.class);
+                    System.out.println("\t" + website.getName());
 
-                // Remove the NO DNS for direct Websites
-                System.out.println("Remove the NO DNS for Websites");
-                websites.stream() //
-                        .map(website -> {
-                            ResponseResourceBucket websiteBucket = infraResourceApiService.resourceFindOneByPk(website.getResourceDetails());
-                            if (!websiteBucket.isSuccess() || websiteBucket.getItem() == null) {
-                                throw new CliException("Could not get the Website: " + JsonTools.compactPrint(websiteBucket));
-                            }
-
-                            return websiteBucket.getItem();
-                        }) //
-                        .forEach(websiteBucket -> {
-                            Website website = InfraResourceUtils.resourceDetailsToResource(websiteBucket.getResourceDetails(), Website.class);
-                            System.out.println("\t" + website.getName());
-
-                            List<String> currentlyInstalledOnNoDns = websiteBucket.getLinksTo().stream() //
-                                    .filter(it -> StringTools.safeEquals(it.getLinkType(), "INSTALLED_ON_NO_DNS")) //
-                                    .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
-                                    .map(it -> ((Map<String, String>) it.getOtherResource().getResource()).get("resourceName")) //
-                                    .sorted() //
-                                    .collect(Collectors.toList());
-
-                            currentlyInstalledOnNoDns.forEach(machineName -> {
-                                System.out.println("\t\t[REMOVE DISABLED DNS] " + machineName);
-                                changes.getLinksToDelete()
-                                        .add(new LinkDetails(websiteBucket.getResourceDetails(), "INSTALLED_ON_NO_DNS", new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
-                            });
-
-                        });
-
-                // Update the Url Redirections with the application's Machines
-                System.out.println("Update the Url Redirections with the application's Machines");
-                urlRedirections.forEach(urlRedirection -> {
-
-                    List<String> currentlyInstalledOn = urlRedirection.getLinksTo().stream() //
+                    List<String> currentlyInstalledOn = websiteBucket.getLinksTo().stream() //
                             .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.INSTALLED_ON)) //
                             .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
                             .map(it -> ((Map<String, String>) it.getOtherResource().getResource()).get("resourceName")) //
@@ -650,23 +583,115 @@ public class MoveService extends AbstractBasics {
 
                         @Override
                         public void leftOnly(String machineName) {
-                            System.out.println("\t\t[REMOVE] " + machineName);
+                            System.out.println("\t\t[DISABLE DNS] " + machineName);
                             changes.getLinksToDelete()
-                                    .add(new LinkDetails(urlRedirection.getResourceDetails(), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
+                                    .add(new LinkDetails(websiteBucket.getResourceDetails(), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
+                            changes.getLinksToAdd()
+                                    .add(new LinkDetails(websiteBucket.getResourceDetails(), "INSTALLED_ON_NO_DNS", new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
                         }
 
                         @Override
                         public void rightOnly(String machineName) {
                             System.out.println("\t\t[ADD] " + machineName);
                             changes.getLinksToAdd()
-                                    .add(new LinkDetails(urlRedirection.getResourceDetails(), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
+                                    .add(new LinkDetails(websiteBucket.getResourceDetails(), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
                         }
                     });
 
                 });
 
                 ResponseResourceAppliedChanges resourceAppliedChanges = infraResourceApiService.applyChanges(changes);
-                exceptionService.displayResult(resourceAppliedChanges, "Applying update");
+                exceptionService.displayResult(resourceAppliedChanges, "Applying update for owner " + owner);
+
+            });
+
+        }
+
+        // Wait 10 minutes
+        Thread thread = new Thread(() -> {
+
+            try {
+
+                System.out.println("Waiting 10 minutes to complete with DNS update. This will run in the background at " + DateTools.formatFull(DateTools.addDate(Calendar.MINUTE, 10)));
+                ThreadTools.sleep(10 * 60000L);
+
+                // Remove the NO DNS for direct Websites
+                System.out.println("Remove the NO DNS for Websites");
+
+                websitesByOwner.forEach((owner, websites) -> {
+
+                    System.out.println("Remove the NO DNS for Websites for owner " + owner);
+
+                    RequestChanges changes = new RequestChanges();
+                    changes.setDefaultOwner(owner);
+
+                    websitesForDomain.stream() //
+                            .map(website -> {
+                                ResponseResourceBucket websiteBucket = infraResourceApiService.resourceFindOneByPk(website.getResourceDetails());
+                                if (!websiteBucket.isSuccess() || websiteBucket.getItem() == null) {
+                                    throw new CliException("Could not get the Website: " + JsonTools.compactPrint(websiteBucket));
+                                }
+
+                                return websiteBucket.getItem();
+                            }) //
+                            .forEach(websiteBucket -> {
+                                Website website = InfraResourceUtils.resourceDetailsToResource(websiteBucket.getResourceDetails(), Website.class);
+                                System.out.println("\t" + website.getName());
+
+                                List<String> currentlyInstalledOnNoDns = websiteBucket.getLinksTo().stream() //
+                                        .filter(it -> StringTools.safeEquals(it.getLinkType(), "INSTALLED_ON_NO_DNS")) //
+                                        .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
+                                        .map(it -> ((Map<String, String>) it.getOtherResource().getResource()).get("resourceName")) //
+                                        .sorted() //
+                                        .collect(Collectors.toList());
+
+                                currentlyInstalledOnNoDns.forEach(machineName -> {
+                                    System.out.println("\t\t[REMOVE DISABLED DNS] " + machineName);
+                                    changes.getLinksToDelete()
+                                            .add(new LinkDetails(websiteBucket.getResourceDetails(), "INSTALLED_ON_NO_DNS", new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
+                                });
+
+                            });
+
+                    // Update the Url Redirections with the application's Machines
+                    System.out.println("Update the Url Redirections with the application's Machines");
+                    urlRedirections.forEach(urlRedirection -> {
+
+                        List<String> currentlyInstalledOn = urlRedirection.getLinksTo().stream() //
+                                .filter(it -> StringTools.safeEquals(it.getLinkType(), LinkTypeConstants.INSTALLED_ON)) //
+                                .filter(it -> StringTools.safeEquals(it.getOtherResource().getResourceType(), Machine.RESOURCE_TYPE)) //
+                                .map(it -> ((Map<String, String>) it.getOtherResource().getResource()).get("resourceName")) //
+                                .sorted() //
+                                .collect(Collectors.toList());
+
+                        ListsComparator.compareLists(currentlyInstalledOn, applicationInstalledOn, new ListComparatorHandler<String, String>() {
+
+                            @Override
+                            public void both(String machineName, String right) {
+                                System.out.println("\t\t[KEEP] " + machineName);
+                            }
+
+                            @Override
+                            public void leftOnly(String machineName) {
+                                System.out.println("\t\t[REMOVE] " + machineName);
+                                changes.getLinksToDelete().add(
+                                        new LinkDetails(urlRedirection.getResourceDetails(), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
+                            }
+
+                            @Override
+                            public void rightOnly(String machineName) {
+                                System.out.println("\t\t[ADD] " + machineName);
+                                changes.getLinksToAdd().add(
+                                        new LinkDetails(urlRedirection.getResourceDetails(), LinkTypeConstants.INSTALLED_ON, new ResourceDetails(Machine.RESOURCE_TYPE, new Machine(machineName))));
+                            }
+                        });
+
+                    });
+
+                    ResponseResourceAppliedChanges resourceAppliedChanges = infraResourceApiService.applyChanges(changes);
+                    exceptionService.displayResult(resourceAppliedChanges, "Applying update for owner " + owner);
+
+                });
 
                 System.out.println("Update completed");
             } catch (Exception e) {
