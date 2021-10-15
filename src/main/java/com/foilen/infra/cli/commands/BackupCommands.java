@@ -31,13 +31,13 @@ public class BackupCommands extends AbstractBasics {
     @Autowired
     private ProfileService profileService;
 
-    @ShellMethod("Backup all by TIMESTAMP/OWNER/MACHINE-USER.tgz")
-    public void backupAll( //
+    @ShellMethod("Backup all by TIMESTAMP/OWNER/MACHINE-USER.tgz by directly compressing on the machine and sending the archive")
+    public void backupDirectArchiveAll( //
             String folder //
     ) {
 
         String timestamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
-        BackupResults results = backupService.backupAll(folder, timestamp);
+        BackupResults results = backupService.backupDirectArchiveAll(folder, timestamp);
 
         System.out.println("---[ Summary ]---");
         System.out.println(results);
