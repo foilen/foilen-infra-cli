@@ -58,6 +58,33 @@ public class BackupCommands extends AbstractBasics {
 
     }
 
+    @ShellMethod("Backup all by TIMESTAMP/OWNER/MACHINE-USER.tgz by doing an rsync in a raw folder and compressing locally the archive")
+    public void backupRsyncArchiveAll( //
+            String folder //
+    ) {
+
+        String timestamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
+        BackupResults results = backupService.backupRsyncArchiveAll(folder, timestamp);
+
+        System.out.println("---[ Summary ]---");
+        System.out.println(results);
+
+    }
+
+    @ShellMethod("Backup a machine by TIMESTAMP/OWNER/MACHINE-USER.tgz by doing an rsync in a raw folder and compressing locally the archive")
+    public void backupRsyncArchiveMachine( //
+            String folder, // ,
+            String machineName // ,
+    ) {
+
+        String timestamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
+        BackupResults results = backupService.backupRsyncArchive(folder, timestamp, machineName);
+
+        System.out.println("---[ Summary ]---");
+        System.out.println(results);
+
+    }
+
     @ShellMethodAvailability
     public Availability isAvailable() {
 

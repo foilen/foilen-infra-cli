@@ -17,6 +17,7 @@ import java.io.PipedOutputStream;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.slf4j.event.Level;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -26,12 +27,14 @@ import com.foilen.infra.cli.model.MysqlSyncSide;
 import com.foilen.infra.cli.model.profile.ProfileHasCert;
 import com.foilen.infra.cli.model.profile.ProfileHasHostname;
 import com.foilen.infra.cli.model.profile.ProfileHasUser;
+import com.foilen.smalltools.consolerunner.ConsoleRunner;
 import com.foilen.smalltools.iterable.FileLinesIterable;
 import com.foilen.smalltools.jsch.JSchTools;
 import com.foilen.smalltools.jsch.SshLogin;
 import com.foilen.smalltools.shell.ExecResult;
 import com.foilen.smalltools.tools.AbstractBasics;
 import com.foilen.smalltools.tools.CloseableTools;
+import com.foilen.smalltools.tools.DirectoryTools;
 import com.foilen.smalltools.tools.ExecutorsTools;
 import com.foilen.smalltools.tools.SecureRandomTools;
 import com.foilen.smalltools.tools.ThreadTools;
@@ -430,6 +433,65 @@ public class SshService extends AbstractBasics {
                 jSchTools.disconnect();
             }
 
+        }
+
+    }
+
+    /**
+     * Sync files between machines using rsync
+     *
+     * @param sourceHostname
+     *            the source host name
+     * @param sourceUsername
+     *            the source user name
+     * @param localTargetPath
+     *            the local target folder
+     */
+    public void syncFilesRemoteToLocal(String sourceHostname, String sourceUsername, String localTargetPath) {
+
+        DirectoryTools.createPath(localTargetPath);
+
+        if (sourceHostname == null) {
+            ProfileHasHostname value = profileService.getSourceAs(ProfileHasHostname.class);
+            if (value != null && value.getHostname() != null) {
+                sourceHostname = value.getHostname();
+            }
+            if (sourceHostname == null) {
+                throw new CliException("You must specify a sourceHostname");
+            }
+        }
+
+        // Check is using cert (rsync using the cert)
+        boolean sourceHasCert = false;
+        ProfileHasCert sourceProfileHasCert = profileService.getSourceAs(ProfileHasCert.class);
+        if (sourceProfileHasCert != null) {
+            sourceHasCert = sourceProfileHasCert.getSshCertificateFile() != null;
+        }
+        if (!sourceHasCert) {
+            throw new CliException("The source must use certificate");
+        }
+
+        ProfileHasUser sourceProfileHasUser = profileService.getSourceAs(ProfileHasUser.class);
+        String sourceCertUsername = "root";
+        if (sourceProfileHasUser != null && sourceProfileHasUser.getUsername() != null) {
+            sourceCertUsername = sourceProfileHasUser.getUsername();
+        }
+
+        // Local rsync
+        logger.info("Local rsync using cert");
+
+        ConsoleRunner runner = new ConsoleRunner();
+        runner.setCommand("/usr/bin/rsync");
+        runner.addArguments("--inplace", "--compress-level=9", "--delete", "-zrtv");
+        runner.addArguments("-e", "ssh -o StrictHostKeyChecking=no -i " + sourceProfileHasCert.getSshCertificateFile() + " -l " + sourceCertUsername);
+        runner.addArguments(sourceHostname + ":/home/" + sourceUsername + "/");
+        runner.addArguments(localTargetPath);
+
+        logger.info("Run command: {} {}", runner.getCommand(), runner.getArguments());
+        int status = runner.executeWithLogger(logger, Level.INFO);
+        if (status != 0) {
+            logger.error("There was a problem executing the rsync command. Exit code: {}", status);
+            throw new CliException("There was a problem executing the rsync command");
         }
 
     }
