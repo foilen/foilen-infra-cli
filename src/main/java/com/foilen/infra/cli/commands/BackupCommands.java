@@ -44,6 +44,20 @@ public class BackupCommands extends AbstractBasics {
 
     }
 
+    @ShellMethod("Backup a machine by TIMESTAMP/OWNER/MACHINE-USER.tgz by directly compressing on the machine and sending the archive")
+    public void backupDirectArchiveMachine( //
+            String folder, // ,
+            String machineName // ,
+    ) {
+
+        String timestamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
+        BackupResults results = backupService.backupDirectArchive(folder, timestamp, machineName);
+
+        System.out.println("---[ Summary ]---");
+        System.out.println(results);
+
+    }
+
     @ShellMethodAvailability
     public Availability isAvailable() {
 

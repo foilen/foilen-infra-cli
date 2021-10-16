@@ -132,6 +132,42 @@ public class BackupService extends AbstractBasics {
         }
     }
 
+    public BackupResults backupDirectArchive(String backupFolder, String timestamp, String machineName) {
+
+        BackupResults results = new BackupResults();
+
+        try {
+
+            DirectoryTools.createPath(backupFolder + "/" + timestamp);
+
+            // Get the machine on the target
+            InfraApiService infraApiService = profileService.getTargetInfraApiService();
+            InfraResourceApiService infraResourceApiService = infraApiService.getInfraResourceApiService();
+            RequestResourceSearch search = new RequestResourceSearch().setResourceType(Machine.RESOURCE_TYPE);
+            search.getProperties().put(Machine.PROPERTY_NAME, machineName);
+            ResponseResourceBucket sourceMachineBucket = infraResourceApiService.resourceFindOne(search);
+            exceptionService.displayResultAndThrow(sourceMachineBucket, "Get the machine");
+
+            ResourceBucket machineBucket = sourceMachineBucket.getItem();
+            backupDirectArchive(infraResourceApiService, backupFolder, timestamp, results, machineBucket);
+
+            results.setCompleted(true);
+
+        } catch (Exception e) {
+            logger.error("Got an error", e);
+        }
+
+        // Put the summary in the file
+        if (results.isCompleted()) {
+            FileTools.writeFile(results.toString(), backupFolder + "/" + timestamp + "/BACKUP_COMPLETED.txt");
+        } else {
+            FileTools.writeFile(results.toString(), backupFolder + "/" + timestamp + "/BACKUP_INCOMPLETE.txt");
+        }
+
+        return results;
+
+    }
+
     public BackupResults backupDirectArchiveAll(String backupFolder, String timestamp) {
 
         BackupResults results = new BackupResults();
@@ -165,6 +201,7 @@ public class BackupService extends AbstractBasics {
         }
 
         return results;
+
     }
 
 }
