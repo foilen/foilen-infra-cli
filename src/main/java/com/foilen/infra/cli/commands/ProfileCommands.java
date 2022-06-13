@@ -32,13 +32,16 @@ public class ProfileCommands {
             String infraBaseUrl, //
             String apiUser, //
             String apiKey, //
-            @ShellOption(defaultValue = ShellOption.NULL) String rootSshCert) {
+            @ShellOption(defaultValue = ShellOption.NULL) String rootSshCert,
+            @ShellOption(defaultValue = ShellOption.NULL) String rootSshPassword
+    ) {
 
         ApiProfile profile = new ApiProfile();
         profile.setInfraBaseUrl(infraBaseUrl);
         profile.setApiUser(apiUser);
         profile.setApiKey(apiKey);
         profile.setSshCertificateFile(rootSshCert);
+        profile.setSshPassword(rootSshPassword);
         profileService.add(profileName, profile);
     }
 

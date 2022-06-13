@@ -19,6 +19,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
+import com.foilen.infra.cli.model.profile.ProfileHasPassword;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.shell.Availability;
 import org.springframework.shell.standard.ShellComponent;
@@ -111,9 +112,10 @@ public class UpdateCommands extends AbstractBasics {
         }
         String finalVersion = version;
 
-        // Check there is a certificate
+        // Check there is a certificate and/or password
         String certFile = ((ProfileHasCert) profileService.getTarget()).getSshCertificateFile();
-        AssertTools.assertNotNull(certFile, "The target profile does not have the root certificate set");
+        String sshPassword = ((ProfileHasPassword) profileService.getTarget()).getSshPassword();
+        AssertTools.assertTrue(certFile != null || sshPassword!= null, "The target profile does not have the root certificate or password set");
 
         // Get the list of machines
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
@@ -139,7 +141,7 @@ public class UpdateCommands extends AbstractBasics {
                 logger.info("Updating docker manager on {} to version {}", h, finalVersion);
                 JSchTools jSchTools = null;
                 try {
-                    jSchTools = new JSchTools().login(new SshLogin(h, "root").withPrivateKey(certFile).autoApproveHostKey());
+                    jSchTools = new JSchTools().login(new SshLogin(h, "root").withPrivateKey(certFile).withPassword(sshPassword).autoApproveHostKey());
 
                     // Send the script
                     String scriptPath = "/home/infra_docker_manager/startDockerManager.sh";
@@ -285,9 +287,10 @@ public class UpdateCommands extends AbstractBasics {
     @ShellMethod("Update the softwares on all the machines (apt dist-upgrade).")
     public void updateSoftwares() {
 
-        // Check there is a certificate
+        // Check there is a certificate and/or password
         String certFile = ((ProfileHasCert) profileService.getTarget()).getSshCertificateFile();
-        AssertTools.assertNotNull(certFile, "The target profile does not have the root certificate set");
+        String sshPassword = ((ProfileHasPassword) profileService.getTarget()).getSshPassword();
+        AssertTools.assertTrue(certFile != null || sshPassword!= null, "The target profile does not have the root certificate or password set");
 
         // Get the list of machines
         InfraApiService infraApiService = profileService.getTargetInfraApiService();
@@ -307,7 +310,7 @@ public class UpdateCommands extends AbstractBasics {
                         JSchTools jSchTools = null;
                         try {
                             logger.info("Updating softwares list on {}", hostname);
-                            jSchTools = new JSchTools().login(new SshLogin(hostname, "root").withPrivateKey(certFile).autoApproveHostKey());
+                            jSchTools = new JSchTools().login(new SshLogin(hostname, "root").withPrivateKey(certFile).withPassword(sshPassword).autoApproveHostKey());
                             ExecResult execResult = jSchTools.executeInLogger("export TERM=dumb ; /usr/bin/apt-get update");
                             if (execResult.getExitCode() == 0) {
                                 logger.info("Updating softwares list on {} was a success", hostname);

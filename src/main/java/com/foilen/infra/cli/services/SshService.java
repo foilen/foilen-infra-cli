@@ -17,6 +17,7 @@ import java.io.PipedOutputStream;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.foilen.infra.cli.model.profile.ProfileHasPassword;
 import org.slf4j.event.Level;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -87,6 +88,7 @@ public class SshService extends AbstractBasics {
     public void executeCommandInFileTarget(String hostname, String command, String stdOutFile) {
 
         ProfileHasCert targetProfileHasCert = profileService.getTargetAsOrFail(ProfileHasCert.class);
+        ProfileHasPassword targetProfileHasPassword = profileService.getTargetAsOrFail(ProfileHasPassword.class);
 
         JSchTools jSchTools = new JSchTools();
         AtomicBoolean completed = new AtomicBoolean();
@@ -96,6 +98,7 @@ public class SshService extends AbstractBasics {
 
             jSchTools.login(new SshLogin(hostname, "root") //
                     .withPrivateKey(targetProfileHasCert.getSshCertificateFile()) //
+                    .withPassword(targetProfileHasPassword.getSshPassword()) //
                     .autoApproveHostKey());
 
             // Keep lasts errors lines
@@ -170,12 +173,14 @@ public class SshService extends AbstractBasics {
     public void executeCommandInLoggerTarget(String hostname, String command) {
 
         ProfileHasCert targetProfileHasCert = profileService.getTargetAsOrFail(ProfileHasCert.class);
+        ProfileHasPassword targetProfileHasPassword = profileService.getTargetAsOrFail(ProfileHasPassword.class);
 
         JSchTools jSchTools = new JSchTools();
         try {
 
             jSchTools.login(new SshLogin(hostname, "root") //
                     .withPrivateKey(targetProfileHasCert.getSshCertificateFile()) //
+                    .withPassword(targetProfileHasPassword.getSshPassword()) //
                     .autoApproveHostKey());
 
             jSchTools.executeInLogger(command);
@@ -229,7 +234,9 @@ public class SshService extends AbstractBasics {
         boolean sourceHasCert = false;
         boolean targetHasCert = false;
         ProfileHasCert sourceProfileHasCert = profileService.getSourceAs(ProfileHasCert.class);
+        ProfileHasPassword sourceProfileHasPassword = profileService.getSourceAs(ProfileHasPassword.class);
         ProfileHasCert targetProfileHasCert = profileService.getTargetAs(ProfileHasCert.class);
+        ProfileHasPassword targetProfileHasPassword = profileService.getTargetAs(ProfileHasPassword.class);
         if (sourceProfileHasCert != null) {
             sourceHasCert = sourceProfileHasCert.getSshCertificateFile() != null;
         }
@@ -304,7 +311,10 @@ public class SshService extends AbstractBasics {
             try {
                 // Send source cert
                 logger.info("chown on target");
-                jSchTools.login(new SshLogin(targetHostname, targetCertUsername).withPrivateKey(targetProfileHasCert.getSshCertificateFile()).autoApproveHostKey());
+                jSchTools.login(new SshLogin(targetHostname, targetCertUsername)
+                        .withPrivateKey(targetProfileHasCert.getSshCertificateFile())
+                        .withPassword(targetProfileHasPassword.getSshPassword())
+                        .autoApproveHostKey());
 
                 StringBuilder command = new StringBuilder();
                 command.append("/bin/chown -R ");
@@ -377,7 +387,10 @@ public class SshService extends AbstractBasics {
             try {
                 // Send source cert
                 logger.info("Send target cert to source");
-                jSchTools.login(new SshLogin(sourceHostname, sourceCertUsername).withPrivateKey(sourceProfileHasCert.getSshCertificateFile()).autoApproveHostKey());
+                jSchTools.login(new SshLogin(sourceHostname, sourceCertUsername)
+                        .withPrivateKey(sourceProfileHasCert.getSshCertificateFile())
+                        .withPassword(sourceProfileHasPassword.getSshPassword())
+                        .autoApproveHostKey());
                 jSchTools.createAndUseSftpChannel(consumer -> {
                     // Create
                     consumer.put(tmpKeyfile).close();
@@ -417,7 +430,10 @@ public class SshService extends AbstractBasics {
             try {
                 // Send source cert
                 logger.info("chown on target");
-                jSchTools.login(new SshLogin(targetHostname, targetCertUsername).withPrivateKey(targetProfileHasCert.getSshCertificateFile()).autoApproveHostKey());
+                jSchTools.login(new SshLogin(targetHostname, targetCertUsername)
+                        .withPrivateKey(targetProfileHasCert.getSshCertificateFile())
+                        .withPassword(targetProfileHasPassword.getSshPassword())
+                        .autoApproveHostKey());
 
                 StringBuilder command = new StringBuilder();
                 command.append("/bin/chown -R ");
@@ -517,12 +533,14 @@ public class SshService extends AbstractBasics {
     public void waitUserIsPresent(String hostname, String username) {
 
         ProfileHasCert targetProfileHasCert = profileService.getTargetAsOrFail(ProfileHasCert.class);
+        ProfileHasPassword targetProfileHasPassword = profileService.getTargetAsOrFail(ProfileHasPassword.class);
 
         JSchTools jSchTools = new JSchTools();
         try {
 
             jSchTools.login(new SshLogin(hostname, "root") //
                     .withPrivateKey(targetProfileHasCert.getSshCertificateFile()) //
+                    .withPassword(targetProfileHasPassword.getSshPassword()) //
                     .autoApproveHostKey());
 
             jSchTools.executeInLogger("while(! grep '^" + username + ":' /etc/passwd); do\n" //
