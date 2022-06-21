@@ -9,15 +9,6 @@
  */
 package com.foilen.infra.cli.services;
 
-import java.io.File;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
-
-import org.slf4j.event.Level;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
 import com.foilen.infra.api.model.resource.ResourceBucket;
 import com.foilen.infra.api.request.RequestResourceSearch;
 import com.foilen.infra.api.response.ResponseResourceBucket;
@@ -32,15 +23,17 @@ import com.foilen.infra.plugin.v1.model.resource.LinkTypeConstants;
 import com.foilen.infra.resource.machine.Machine;
 import com.foilen.infra.resource.unixuser.UnixUser;
 import com.foilen.smalltools.consolerunner.ConsoleRunner;
-import com.foilen.smalltools.tools.AbstractBasics;
-import com.foilen.smalltools.tools.AssertTools;
-import com.foilen.smalltools.tools.DirectoryTools;
-import com.foilen.smalltools.tools.ExecutorsTools;
-import com.foilen.smalltools.tools.FileTools;
-import com.foilen.smalltools.tools.JsonTools;
-import com.foilen.smalltools.tools.SpaceConverterTools;
-import com.foilen.smalltools.tools.ThreadTools;
-import com.foilen.smalltools.tools.TimeConverterTools;
+import com.foilen.smalltools.tools.*;
+import org.slf4j.event.Level;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.io.File;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 @Component
 public class BackupService extends AbstractBasics {
@@ -223,11 +216,22 @@ public class BackupService extends AbstractBasics {
                 }) //
                 .sorted() //
                 .collect(Collectors.toList());
+        Queue<UnixUser> backupQueue = new LinkedList<>();
+        backupQueue.addAll(unixUsers);
 
-        for (UnixUser unixUser : unixUsers) {
+        int maxProcessing = backupQueue.size() * 10;
 
-            backupRsyncArchive(backupFolder, timestamp, results, machineName, unixUser);
-
+        while (!backupQueue.isEmpty() && maxProcessing > 0) {
+            --maxProcessing;
+            var unixUser = backupQueue.poll();
+            try {
+                logger.info("Processing {}/{}", machineName, unixUser.getName());
+                backupRsyncArchive(backupFolder, timestamp, results, machineName, unixUser);
+            } catch (Exception e) {
+                logger.info("Got a problem with {}/{} . Will retry", machineName, unixUser.getName());
+                backupQueue.add(unixUser);
+                ThreadTools.sleep(2000);
+            }
         }
     }
 
