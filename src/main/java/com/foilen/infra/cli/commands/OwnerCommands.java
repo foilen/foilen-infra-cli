@@ -9,16 +9,15 @@
  */
 package com.foilen.infra.cli.commands;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
+import com.foilen.infra.api.model.resource.PartialLinkDetails;
+import com.foilen.infra.api.model.resource.ResourceBucket;
+import com.foilen.infra.cli.commands.model.ExplodedResource;
+import com.foilen.infra.resource.webcertificate.WebsiteCertificate;
+import com.foilen.smalltools.tools.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.shell.Availability;
 import org.springframework.shell.standard.ShellComponent;
@@ -50,11 +49,6 @@ import com.foilen.infra.cli.services.ProfileService;
 import com.foilen.infra.plugin.v1.model.resource.LinkTypeConstants;
 import com.foilen.infra.resource.application.Application;
 import com.foilen.smalltools.restapi.model.FormResult;
-import com.foilen.smalltools.tools.AbstractBasics;
-import com.foilen.smalltools.tools.BufferBatchesTools;
-import com.foilen.smalltools.tools.CollectionsTools;
-import com.foilen.smalltools.tools.StringTools;
-import com.foilen.smalltools.tools.ThreadTools;
 import com.google.common.base.Strings;
 
 @ShellComponent
@@ -354,6 +348,105 @@ public class OwnerCommands extends AbstractBasics {
             });
             batches.add(resourceDetailsToUpdate.stream().collect(Collectors.toList()));
             batches.close();
+        }
+
+    }
+
+    @ShellMethod("List all resources owned by that person")
+    public void ownerListResources( //
+                                    String owner //
+    ) {
+
+        try {
+
+            // Get the list of types
+            InfraApiService infraApiService = profileService.getTargetInfraApiService();
+            InfraResourceApiService infraResourceApiService = infraApiService.getInfraResourceApiService();
+
+            // Find all
+            Map<String, ResourceBucket> resourceBucketById = new ConcurrentHashMap<>();
+            ExecutorService executorService = Executors.newFixedThreadPool(10, ThreadTools.daemonThreadFactory());
+            Queue<Future<?>> futures = new ConcurrentLinkedQueue<>();
+            int page = 1;
+            while (true) {
+                ResourceBucketsWithPagination result = infraResourceApiService.resourceFindAll(page, owner, true);
+                exceptionService.displayResultAndThrow(result, "Get page " + page);
+                ++page;
+
+                // Go through all
+                result.getItems().forEach(partialResourceBucket -> {
+                    ResourceDetails partialResourceDetails = partialResourceBucket.getResourceDetails();
+                    String resourceOwner = InfraResourceUtils.getOwner(partialResourceDetails);
+                    if (StringTools.safeEquals(resourceOwner, owner)) {
+
+                        futures.add(executorService.submit(() -> {
+
+                            String resourceId = partialResourceDetails.getResourceId();
+                            ResponseResourceBucket responseResourceBucket = infraResourceApiService.resourceFindById(resourceId);
+                            exceptionService.displayResultAndThrow(responseResourceBucket, "Retrieve all the details of " + resourceId);
+
+                            ResourceBucket resourceBucket = responseResourceBucket.getItem();
+                            resourceBucketById.put(resourceBucket.getResourceDetails().getResourceId(), resourceBucket);
+                        }));
+
+                    }
+                });
+
+                // Stop if at the end
+                if (result.getPagination().isLastPage()) {
+                    break;
+                }
+            }
+
+            // Wait for all tasks to be processed
+            futures.forEach(f -> {
+                try {
+                    f.get();
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new CliException("", e);
+                }
+            });
+
+            // List roots
+            resourceBucketById.values().stream()
+                    .filter(it -> it.getLinksFrom().isEmpty())
+                    .map(rb -> {
+                        var resource = JsonTools.cloneAsSortedMap(rb.getResourceDetails().getResource());
+                        return new ExplodedResource(rb.getResourceDetails().getResourceType(), (String) resource.get("resourceName"), resource, rb);
+                    })
+                    .sorted()
+                    .forEach(er -> {
+                        output(0, resourceBucketById, er.getResourceBucket());
+                    });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    private void output(int depth, Map<String, ResourceBucket> resourceBucketById, ResourceBucket resourceBucket) {
+        for (int i = 0; i < depth; ++i) {
+            System.out.print('\t');
+        }
+
+        ResourceDetails resourceDetails = resourceBucket.getResourceDetails();
+        var resource = JsonTools.cloneAsSortedMap(resourceDetails.getResource());
+        var resourceName = resource.get("resourceName");
+        if (resourceName == null) {
+            resourceName = resource.get(WebsiteCertificate.PROPERTY_DOMAIN_NAMES);
+        }
+
+        System.out.println(resourceDetails.getResourceType() + " - " + resourceName);
+
+        Set<String> outputtedIds = new HashSet<>();
+        for (PartialLinkDetails linkTo : resourceBucket.getLinksTo()) {
+            String otherResourceId = linkTo.getOtherResource().getResourceId();
+            var linkToResource = resourceBucketById.get(otherResourceId);
+            if (linkToResource != null) {
+                if (outputtedIds.add(otherResourceId)) {
+                    output(depth + 1, resourceBucketById, linkToResource);
+                }
+            }
         }
 
     }
